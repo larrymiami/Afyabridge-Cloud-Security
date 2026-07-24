@@ -19,7 +19,7 @@ The threat model covers:
 - country-level isolation for Kenya, Ghana, and South Africa;
 - external notification, identity, referral, and security integrations.
 
-The model does not claim to represent a certified production assessment. It is a portfolio threat model based on synthetic data and a controlled lab environment.
+The model is based on synthetic data and a controlled lab environment. It does not represent a certified production security assessment.
 
 ## Method
 
