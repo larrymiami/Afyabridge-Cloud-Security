@@ -10,19 +10,19 @@ The community-health application exists as a realistic workload for the security
 
 ## 2. Project outcomes
 
-The completed project should provide credible evidence that its author can:
+The completed project should provide evidence that the platform can:
 
-- design a secure Google Cloud foundation for multiple countries and environments;
+- support a secure Google Cloud foundation for multiple countries and environments;
 - translate business and health-data risks into technical security requirements;
 - implement infrastructure as code and policy as code;
 - build security controls into CI/CD workflows;
 - deploy and operate cloud-native workloads securely;
 - manage workforce, workload, and application identities;
-- design network, encryption, logging, and governance controls;
+- enforce network, encryption, logging, and governance controls;
 - manage software supply-chain and dependency risk;
 - detect cloud posture drift and suspicious activity;
-- plan, execute, and document incident-response simulations;
-- explain engineering decisions, trade-offs, costs, and residual risks.
+- execute and document incident-response simulations;
+- retain architecture decisions, implementation evidence, costs, trade-offs, and residual risks.
 
 ## 3. In scope
 
@@ -131,7 +131,7 @@ The project includes:
 - multi-region deployment and resilience testing;
 - infrastructure cleanup and cost-control procedures.
 
-Cloud Run and GKE do not need to host identical production architectures. Cloud Run will demonstrate a lower-operational-overhead design, while GKE will demonstrate advanced policy and runtime controls.
+Cloud Run and GKE do not need to host identical architectures. Cloud Run will demonstrate a lower-operational-overhead design, while GKE will demonstrate advanced policy and runtime controls.
 
 ### 3.7 DevSecOps and software supply-chain security
 
@@ -227,19 +227,22 @@ The project includes:
 - health checks and rollback procedures;
 - documented disaster-recovery trade-offs.
 
-### 3.13 Documentation and public communication
+### 3.13 Engineering documentation and evidence
 
 The project includes:
 
 - implementation guides;
-- architecture diagrams;
-- decision records;
-- evidence and screenshots;
-- weekly or milestone-based technical articles;
-- LinkedIn and X/Twitter summaries;
-- a final flagship case study.
+- architecture and data-flow diagrams;
+- architecture decision records;
+- threat and control traceability;
+- configuration references;
+- test plans and test results;
+- sanitised screenshots, logs, and command output;
+- incident and resilience exercise reports;
+- cost, cleanup, and operational runbooks;
+- implementation status labels for designed, simulated, code-complete, and implemented controls.
 
-Public content will describe the work as an independent fictional portfolio project and will not disclose employer systems, confidential architecture, credentials, data, or internal processes.
+Documentation exists to make the architecture, implementation, controls, and evidence reproducible and reviewable.
 
 ## 4. Out of scope
 
@@ -282,7 +285,7 @@ The project will not claim:
 - Ghana Data Protection Act certification;
 - any other legal, regulatory, or industry attestation.
 
-Relevant frameworks and laws may be used as design references or control-mapping exercises only. Formal compliance requires legal interpretation, organisational processes, contracts, audits, and production evidence beyond this portfolio project.
+Relevant frameworks and laws may be used as design references or control-mapping exercises only. Formal compliance requires legal interpretation, organisational processes, contracts, audits, and production evidence beyond this project.
 
 ### 4.4 Enterprise services outside the available lab
 
@@ -311,7 +314,7 @@ The project will not provide:
 - 24/7 on-call support;
 - real production service-level agreements;
 - continuous human monitoring;
-- real incident notification obligations;
+- real incident-notification obligations;
 - production customer support;
 - indefinite cloud-resource operation.
 
@@ -339,7 +342,7 @@ The following rules apply throughout the project:
 5. Intentionally public resources must be temporary, contain no sensitive data, and be removed immediately after testing.
 6. Security tests must target only approved project environments.
 7. Destructive tests must include recovery and cleanup procedures.
-8. Evidence must be sanitised before publication.
+8. Retained evidence must be sanitised and must not expose credentials, tokens, or sensitive environment details.
 9. Cloud resources must be labelled, budgeted, and removable through documented commands.
 10. Controls that are not actually implemented must not be represented as complete.
 
@@ -353,7 +356,7 @@ The intended environments are:
 | Sandbox | Short-lived experiments | Synthetic | Restricted | Hours or days |
 | Development | Integrated application and infrastructure work | Synthetic | Restricted | Intermittent |
 | Staging | Production-like validation and DAST | Synthetic | Controlled public endpoints where required | Intermittent |
-| Production lab | Secure deployment, governance, and resilience demonstrations | Synthetic | Controlled | Temporary or scheduled |
+| Production lab | Secure deployment, governance, and resilience validation | Synthetic | Controlled | Temporary or scheduled |
 
 No environment is a real healthcare production environment.
 
@@ -372,7 +375,7 @@ The initial trust boundaries include:
 - operational data to analytics pipelines;
 - cloud workloads to external notification or identity providers.
 
-Each boundary must later be represented in the threat model and architecture diagrams.
+Each boundary must be represented in the threat model and architecture diagrams.
 
 ## 8. Implementation depth labels
 
@@ -384,9 +387,9 @@ Every major feature should be marked using one of these labels:
 | **Simulated** | Tested through a controlled local or cloud exercise |
 | **Code complete** | Configuration exists and is validated but was not applied |
 | **Designed** | Architecture and controls are documented but not built |
-| **Enterprise extension** | Recommended production capability outside the portfolio budget or access level |
+| **Enterprise extension** | Recommended production capability outside the project budget or access level |
 
-This prevents ambiguity and makes the final project credible.
+These labels prevent ambiguity between planned and completed work.
 
 ## 9. Definition of project completion
 
@@ -401,4 +404,4 @@ AfyaBridge Cloud Security reaches version 1.0 when:
 - incident-response and resilience exercises are documented;
 - implemented, simulated, and design-only controls are clearly distinguished;
 - deployment and cleanup instructions are reproducible;
-- the final technical case study links architecture, implementation, evidence, costs, trade-offs, and lessons learned.
+- architecture decisions, implementation evidence, costs, trade-offs, residual risks, and operational procedures are consolidated in the repository.
