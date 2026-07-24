@@ -87,6 +87,16 @@ The project is currently in the architecture and planning phase.
 - Intentionally vulnerable components will only run in isolated lab environments.
 - All cloud resources will include documented cleanup procedures and cost controls.
 
+## License
+
+Copyright 2026 Larry Miami.
+
+This project is licensed under the
+[Apache License 2.0](./LICENSE).
+
+The AfyaBridge name and associated branding are not granted for reuse under
+this license.
+
 ## Author
 
 Built and documented by Larry Miami as an exploration of secure cloud delivery and resilient healthtech engineering.
