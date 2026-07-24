@@ -9,7 +9,7 @@
 - [ ] Create initial architecture diagram
 - [ ] Create threat model
 - [ ] Create security control matrix
-- [ ] Publish project introduction article
+- [ ] Establish architecture decision record structure
 
 ## v0.2 — Google Cloud landing zone
 
@@ -101,5 +101,5 @@
 - [ ] Deploy multiple regional workloads
 - [ ] Test regional failover
 - [ ] Test backup restoration
-- [ ] Finalize flagship case study
-- [ ] Publish final architecture and results
+- [ ] Consolidate architecture decisions and control evidence
+- [ ] Produce final implementation and operations documentation
