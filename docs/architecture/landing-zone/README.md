@@ -47,25 +47,38 @@ The landing zone must:
 | Document | Status | Purpose |
 |---|---|---|
 | [`resource-hierarchy.md`](./resource-hierarchy.md) | Designed | Folder and project structure, inheritance, and ownership boundaries |
-| `project-factory.md` | Planned | Repeatable project creation and baseline configuration |
-| `environment-separation.md` | Planned | Production, staging, development, and sandbox controls |
-| `shared-services.md` | Planned | Central security, logging, networking, and delivery services |
-| `region-strategy.md` | Planned | Approved regions, recovery regions, and global-service exceptions |
-| `naming-and-labeling.md` | Planned | Project IDs, names, labels, tags, and metadata rules |
-| `billing-and-cost-controls.md` | Planned | Billing accounts, budgets, alerts, quotas, and cleanup rules |
-| `bootstrap-and-state.md` | Planned | Terraform state, bootstrap identities, federation, and recovery |
+| [`project-factory.md`](./project-factory.md) | Designed | Repeatable project creation and baseline configuration |
+| [`environment-separation.md`](./environment-separation.md) | Designed | Production, staging, development, and sandbox controls |
+| [`shared-services.md`](./shared-services.md) | Designed | Central security, logging, networking, and delivery services |
+| [`region-strategy.md`](./region-strategy.md) | Designed | Approved regions, recovery evaluation, and global-service exceptions |
+| [`naming-and-labeling.md`](./naming-and-labeling.md) | Designed | Project IDs, names, labels, tags, and metadata rules |
+| [`billing-and-cost-controls.md`](./billing-and-cost-controls.md) | Designed | Billing ownership, budgets, alerts, quotas, and cleanup rules |
+| [`bootstrap-and-state.md`](./bootstrap-and-state.md) | Designed | Terraform state, bootstrap identities, federation, and recovery |
+| [`organization-policies.md`](./organization-policies.md) | Designed | Preventive policy baseline, inheritance, rollout, and exceptions |
+| [`logging-and-asset-inventory.md`](./logging-and-asset-inventory.md) | Designed | Central log routing, retention, access, inventory, and drift detection |
 
-## Related architecture
+## Architecture diagrams
 
 - [`../diagrams/landing-zone.md`](../diagrams/landing-zone.md)
+- [`../diagrams/bootstrap-flow.md`](../diagrams/bootstrap-flow.md)
 - [`../diagrams/system-context.md`](../diagrams/system-context.md)
+
+## Architecture decisions
+
+- [`../../adr/ADR-001-google-cloud-resource-hierarchy.md`](../../adr/ADR-001-google-cloud-resource-hierarchy.md)
+- [`../../adr/ADR-002-country-isolation-model.md`](../../adr/ADR-002-country-isolation-model.md)
+- [`../../adr/ADR-003-terraform-state-and-bootstrap.md`](../../adr/ADR-003-terraform-state-and-bootstrap.md)
+
+## Related security documentation
+
 - [`../../security-objectives.md`](../../security-objectives.md)
 - [`../../security-control-matrix.md`](../../security-control-matrix.md)
 - [`../../threat-model/trust-boundaries.md`](../../threat-model/trust-boundaries.md)
+- [`../../threat-model/threat-register.md`](../../threat-model/threat-register.md)
 
 ## Initial implementation status
 
-The v0.2 landing zone begins in the **Designed** state. A control moves to another status only when the repository contains the required code, validation output, and evidence.
+The v0.2 landing zone is in the **Designed** state. A control moves to another status only when the repository contains the required code, validation output, and evidence.
 
 | Status | Meaning |
 |---|---|
@@ -82,9 +95,23 @@ The initial model uses:
 - country folders for production isolation;
 - separate workload projects for application, data, and operations concerns;
 - shared development and staging environments initially;
-- separate common projects for security, logging, networking, and CI/CD;
+- separate common projects for security, logging, networking, CI/CD, artifacts, and DNS;
 - a dedicated bootstrap project for Terraform state and deployment prerequisites;
+- GitHub Workload Identity Federation rather than service-account keys;
+- a project factory for repeatable project creation;
+- approved-location and preventive organization-policy controls;
+- aggregated log routing and centralized asset inventory;
 - explicit project metadata and inherited policy at organisation and folder levels;
 - no direct developer access to production infrastructure.
 
-Detailed rationale is documented in [`resource-hierarchy.md`](./resource-hierarchy.md).
+## v0.2 completion criteria
+
+The design phase is complete when:
+
+- hierarchy and isolation decisions are recorded;
+- environment and shared-service boundaries are defined;
+- region, naming, metadata, and cost rules are documented;
+- bootstrap, state, and project-factory workflows are defined;
+- preventive policy and centralized visibility requirements are documented;
+- diagrams and ADRs match the written architecture;
+- all implementation claims remain accurately marked as **Designed**.
