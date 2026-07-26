@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This section defines the identity architecture for AfyaBridge Cloud Security. It establishes how human users, workloads, application users, CI/CD systems, and emergency operators authenticate, receive authorization, and are monitored across Google Cloud and the AfyaBridge application.
+This section defines the identity architecture for AfyaBridge Cloud Security. It establishes how human users, workloads, application users, CI/CD systems, external parties, and emergency operators authenticate, receive authorization, and are monitored across Google Cloud and the AfyaBridge application.
 
 The design separates identity proofing, authentication, authorization, privilege elevation, lifecycle management, and auditability. No identity is trusted solely because it originates from an internal network or a managed device.
 
@@ -20,6 +20,8 @@ The identity architecture must:
 8. Minimize standing privilege and define controlled emergency access.
 9. Keep application authorization independent from cloud IAM while preserving traceability between them.
 10. Support rapid revocation, periodic access review, and complete audit trails.
+11. Keep external access sponsored, scoped, monitored, and time-bound.
+12. Detect identity misuse, policy drift, and control failure.
 
 ## Identity domains
 
@@ -29,7 +31,7 @@ The identity architecture must:
 | Application users | CHWs, supervisors, facility workers, programme administrators | Application identity provider, session service, application authorization layer |
 | Workloads | APIs, sync workers, background jobs, logging agents | Google Cloud service accounts and workload identity |
 | CI/CD | GitHub Actions workflows and deployment jobs | GitHub OIDC, Workload Identity Federation, deployment service accounts |
-| External parties | approved support vendors, auditors, notification or referral integrations | Federation, restricted accounts, service-specific credentials |
+| External parties | approved partners, contractors, support vendors, auditors, integrations | Federation, restricted accounts, external-access groups, workload-specific trust |
 | Emergency access | break-glass operators | Isolated emergency identities, strong authentication, approval, monitoring |
 
 ## Core principles
@@ -44,6 +46,8 @@ The identity architecture must:
 - Service-account impersonation is preferred over service-account keys.
 - All privileged activity must be attributable to a named identity.
 - Identity changes are reviewed, logged, and reversible.
+- External access requires a named sponsor and expiry.
+- Monitoring covers successful, denied, and changed identity activity.
 
 ## Document index
 
@@ -51,23 +55,37 @@ The identity architecture must:
 |---|---|---|
 | [`identity-domains.md`](./identity-domains.md) | Designed | Identity classes, authorities, trust boundaries, and ownership |
 | [`workforce-access.md`](./workforce-access.md) | Designed | Workforce authentication, group-based access, and environment separation |
-| `workload-identities.md` | Planned | Service accounts, impersonation, federation, and machine identity lifecycle |
-| `application-authorization.md` | Planned | Application roles, country and programme scope, and authorization enforcement |
-| `privileged-access.md` | Planned | Temporary elevation, approvals, and break-glass access |
-| `access-lifecycle.md` | Planned | Joiner, mover, leaver, revocation, and ownership processes |
-| `role-model.md` | Planned | Workforce, cloud, and application role definitions |
-| `access-reviews.md` | Planned | Review frequency, evidence, and remediation |
-| `identity-monitoring.md` | Planned | Authentication, IAM, service-account, and privilege detections |
+| [`workload-identities.md`](./workload-identities.md) | Designed | Service accounts, impersonation, federation, and machine identity lifecycle |
+| [`application-authorization.md`](./application-authorization.md) | Designed | Application roles, country and programme scope, and authorization enforcement |
+| [`privileged-access.md`](./privileged-access.md) | Designed | Temporary elevation, approvals, and break-glass access |
+| [`access-lifecycle.md`](./access-lifecycle.md) | Designed | Joiner, mover, leaver, revocation, and ownership processes |
+| [`role-model.md`](./role-model.md) | Designed | Workforce, cloud, and application role definitions |
+| [`access-reviews.md`](./access-reviews.md) | Designed | Review frequency, evidence, and remediation |
+| [`identity-monitoring.md`](./identity-monitoring.md) | Designed | Authentication, IAM, service-account, application, and privilege detections |
+| [`external-identities.md`](./external-identities.md) | Designed | Partner, contractor, auditor, vendor, and third-party workload access |
+
+## Architecture decisions
+
+| ADR | Decision |
+|---|---|
+| [`../../adr/ADR-004-group-based-workforce-access.md`](../../adr/ADR-004-group-based-workforce-access.md) | Workforce cloud access is assigned through managed groups |
+| [`../../adr/ADR-005-workload-identity-model.md`](../../adr/ADR-005-workload-identity-model.md) | Workloads and CI/CD use dedicated identities and short-lived federation |
+| [`../../adr/ADR-006-privileged-access-model.md`](../../adr/ADR-006-privileged-access-model.md) | Privileged access is temporary, independently approved, and monitored |
+
+## Related diagrams
+
+- [`../diagrams/identity-flow.md`](../diagrams/identity-flow.md)
+- [`../diagrams/privileged-access-flow.md`](../diagrams/privileged-access-flow.md)
 
 ## Related architecture
 
-- [`../diagrams/identity-flow.md`](../diagrams/identity-flow.md)
 - [`../landing-zone/environment-separation.md`](../landing-zone/environment-separation.md)
 - [`../landing-zone/bootstrap-and-state.md`](../landing-zone/bootstrap-and-state.md)
+- [`../landing-zone/logging-and-asset-inventory.md`](../landing-zone/logging-and-asset-inventory.md)
 - [`../../security-objectives.md`](../../security-objectives.md)
 - [`../../security-control-matrix.md`](../../security-control-matrix.md)
 - [`../../threat-model/threat-register.md`](../../threat-model/threat-register.md)
 
-## Initial status
+## Implementation status
 
-The v0.3 identity architecture begins in the **Designed** state. Authentication, authorization, group membership, IAM policy, federation, and revocation controls are not considered implemented until configuration, tests, and evidence exist.
+The v0.3 identity architecture is **Designed**. Authentication, authorization, group membership, IAM policy, federation, monitoring, review, elevation, and revocation controls are not considered implemented until configuration, tests, and evidence exist.
