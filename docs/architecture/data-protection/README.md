@@ -53,17 +53,29 @@ The data-protection architecture must:
 |---|---|---|
 | [`data-classification.md`](./data-classification.md) | Designed | Data classes, handling rules, ownership, and downgrade requirements |
 | [`data-flow-and-inventory.md`](./data-flow-and-inventory.md) | Designed | Data assets, systems of record, approved flows, and flow registration |
-| `encryption-at-rest.md` | Planned | Storage encryption, key scope, and service-specific controls |
-| `encryption-in-transit.md` | Planned | TLS, service authentication, private transport, and certificate requirements |
-| `key-management.md` | Planned | Key hierarchy, ownership, rotation, separation of duties, and recovery |
-| `secrets-management.md` | Planned | Secret storage, access, rotation, detection, and emergency handling |
-| `database-protection.md` | Planned | Database isolation, access, masking, audit, and maintenance controls |
-| `object-storage-protection.md` | Planned | Bucket design, object access, lifecycle, upload, and download protections |
-| `backup-and-recovery.md` | Planned | Backup scope, encryption, immutability, restoration, and evidence |
-| `retention-and-deletion.md` | Planned | Retention schedules, legal holds, erasure, and destruction verification |
-| `data-residency.md` | Planned | Country boundaries, replication restrictions, and exceptions |
-| `exports-and-analytics.md` | Planned | Approved extracts, de-identification, analytics, and downstream controls |
-| `data-protection-monitoring.md` | Planned | Data-access, key-use, export, deletion, and backup detections |
+| [`encryption-at-rest.md`](./encryption-at-rest.md) | Designed | Storage encryption, key scope, and service-specific controls |
+| [`encryption-in-transit.md`](./encryption-in-transit.md) | Designed | TLS, service authentication, private transport, and certificate requirements |
+| [`key-management.md`](./key-management.md) | Designed | Key hierarchy, ownership, rotation, separation of duties, and recovery |
+| [`secrets-management.md`](./secrets-management.md) | Designed | Secret storage, access, rotation, detection, and emergency handling |
+| [`database-protection.md`](./database-protection.md) | Designed | Database isolation, access, masking, audit, and maintenance controls |
+| [`object-storage-protection.md`](./object-storage-protection.md) | Designed | Bucket design, object access, lifecycle, upload, and download protections |
+| [`backup-and-recovery.md`](./backup-and-recovery.md) | Designed | Backup scope, encryption, isolation, restoration, and evidence |
+| [`retention-and-deletion.md`](./retention-and-deletion.md) | Designed | Retention schedules, legal holds, erasure, and destruction verification |
+| [`data-residency.md`](./data-residency.md) | Designed | Country boundaries, replication restrictions, and transfer exceptions |
+| [`exports-and-analytics.md`](./exports-and-analytics.md) | Designed | Approved extracts, de-identification, analytics, AI use, and downstream controls |
+| [`data-protection-monitoring.md`](./data-protection-monitoring.md) | Designed | Data-access, key-use, export, deletion, residency, and backup detections |
+
+## Diagrams
+
+- [`../diagrams/data-protection-flow.md`](../diagrams/data-protection-flow.md)
+- [`../diagrams/key-management-flow.md`](../diagrams/key-management-flow.md)
+- [`../diagrams/backup-recovery-flow.md`](../diagrams/backup-recovery-flow.md)
+
+## Architecture decisions
+
+- [`../../adr/ADR-010-data-classification-and-handling.md`](../../adr/ADR-010-data-classification-and-handling.md)
+- [`../../adr/ADR-011-customer-managed-encryption-keys.md`](../../adr/ADR-011-customer-managed-encryption-keys.md)
+- [`../../adr/ADR-012-country-data-residency.md`](../../adr/ADR-012-country-data-residency.md)
 
 ## Related architecture
 
@@ -71,11 +83,10 @@ The data-protection architecture must:
 - [`../identity/workload-identities.md`](../identity/workload-identities.md)
 - [`../network/private-service-access.md`](../network/private-service-access.md)
 - [`../network/service-to-service-traffic.md`](../network/service-to-service-traffic.md)
-- [`../diagrams/data-protection-flow.md`](../diagrams/data-protection-flow.md)
 - [`../../security-objectives.md`](../../security-objectives.md)
 - [`../../security-control-matrix.md`](../../security-control-matrix.md)
 - [`../../threat-model/threat-register.md`](../../threat-model/threat-register.md)
 
-## Initial status
+## Current status
 
-The v0.5 data-protection and encryption architecture begins in the **Designed** state. No classification, encryption, key-management, secret-management, backup, retention, deletion, residency, export, or monitoring control is considered implemented until configuration, tests, deployment, and evidence exist.
+The v0.5 data-protection and encryption architecture is **Designed**. No classification, encryption, key-management, secret-management, backup, retention, deletion, residency, export, analytics, or monitoring control is considered implemented until configuration, tests, deployment, and evidence exist.
