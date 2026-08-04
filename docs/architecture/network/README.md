@@ -40,15 +40,27 @@ The network architecture must:
 |---|---|---|
 | [`network-topology.md`](./network-topology.md) | Designed | Overall network zones, trust boundaries, and traffic paths |
 | [`shared-vpc-model.md`](./shared-vpc-model.md) | Designed | Host projects, service projects, country separation, and ownership |
-| `subnet-and-addressing.md` | Planned | Address allocation, subnet classes, growth, and overlap prevention |
-| `ingress-and-edge.md` | Planned | Public ingress, load balancing, WAF, TLS, and origin protection |
-| `egress-controls.md` | Planned | NAT, proxies, allowlists, attribution, and outbound restrictions |
-| `private-service-access.md` | Planned | Private connectivity to managed services and APIs |
-| `service-to-service-traffic.md` | Planned | East-west authorization, segmentation, and internal service exposure |
-| `administrative-access.md` | Planned | Identity-aware administration, bastion exceptions, and troubleshooting paths |
-| `third-party-connectivity.md` | Planned | Partner, vendor, webhook, and private-link governance |
-| `dns-and-certificates.md` | Planned | Public and private DNS, certificate ownership, and lifecycle |
-| `network-monitoring.md` | Planned | Flow logs, firewall logs, detections, dashboards, and evidence |
+| [`subnet-and-addressing.md`](./subnet-and-addressing.md) | Designed | Address allocation, subnet classes, growth, and overlap prevention |
+| [`ingress-and-edge.md`](./ingress-and-edge.md) | Designed | Public ingress, load balancing, WAF, TLS, and origin protection |
+| [`egress-controls.md`](./egress-controls.md) | Designed | NAT, proxies, allowlists, attribution, and outbound restrictions |
+| [`private-service-access.md`](./private-service-access.md) | Designed | Private connectivity to managed services and APIs |
+| [`service-to-service-traffic.md`](./service-to-service-traffic.md) | Designed | East-west authorization, segmentation, and internal service exposure |
+| [`administrative-access.md`](./administrative-access.md) | Designed | Identity-aware administration, bastion exceptions, and troubleshooting paths |
+| [`third-party-connectivity.md`](./third-party-connectivity.md) | Designed | Partner, vendor, webhook, and private-connectivity governance |
+| [`dns-and-certificates.md`](./dns-and-certificates.md) | Designed | Public and private DNS, certificate ownership, and lifecycle |
+| [`network-monitoring.md`](./network-monitoring.md) | Designed | Flow logs, firewall logs, detections, dashboards, and evidence |
+
+## Diagrams
+
+- [`../diagrams/network-topology.md`](../diagrams/network-topology.md)
+- [`../diagrams/ingress-egress-flow.md`](../diagrams/ingress-egress-flow.md)
+- [`../diagrams/private-service-flow.md`](../diagrams/private-service-flow.md)
+
+## Architecture decisions
+
+- [`../../adr/ADR-007-shared-vpc-and-country-segmentation.md`](../../adr/ADR-007-shared-vpc-and-country-segmentation.md)
+- [`../../adr/ADR-008-public-ingress-and-edge-protection.md`](../../adr/ADR-008-public-ingress-and-edge-protection.md)
+- [`../../adr/ADR-009-controlled-egress-model.md`](../../adr/ADR-009-controlled-egress-model.md)
 
 ## Related architecture
 
@@ -57,11 +69,25 @@ The network architecture must:
 - [`../landing-zone/region-strategy.md`](../landing-zone/region-strategy.md)
 - [`../identity/workload-identities.md`](../identity/workload-identities.md)
 - [`../identity/privileged-access.md`](../identity/privileged-access.md)
-- [`../diagrams/network-topology.md`](../diagrams/network-topology.md)
 - [`../../security-objectives.md`](../../security-objectives.md)
 - [`../../security-control-matrix.md`](../../security-control-matrix.md)
 - [`../../threat-model/trust-boundaries.md`](../../threat-model/trust-boundaries.md)
 
+## Decision summary
+
+The v0.4 design uses:
+
+- one Shared VPC host project per production country;
+- separate staging and development networks;
+- no direct routing between production countries or from non-production into production;
+- managed public ingress with edge filtering and restricted origins;
+- private managed-service access where supported;
+- identity-authenticated east-west communication;
+- controlled country-specific egress;
+- identity-aware administrative paths;
+- sponsored, scoped, and expiring third-party connectivity;
+- DNS, certificate, flow, firewall, route, edge, and egress monitoring.
+
 ## Initial status
 
-The v0.4 network and perimeter architecture begins in the **Designed** state. No VPC, subnet, route, firewall, load balancer, NAT gateway, private endpoint, DNS zone, certificate, or monitoring control is considered implemented until configuration, tests, and evidence exist.
+The v0.4 network and perimeter architecture is in the **Designed** state. No VPC, subnet, route, firewall, load balancer, NAT gateway, private endpoint, DNS zone, certificate, partner connection, or monitoring control is considered implemented until configuration, tests, deployment, and evidence exist.
