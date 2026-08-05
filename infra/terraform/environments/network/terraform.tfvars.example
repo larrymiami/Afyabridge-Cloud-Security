@@ -1,6 +1,24 @@
 quota_project_id = "afyabridge-shared-network-admin"
 default_region   = "africa-south1"
 
+private_service_access = {
+  ke = {
+    address_name  = "afyabridge-ke-private-services"
+    address       = "10.10.240.0"
+    prefix_length = 20
+  }
+  gh = {
+    address_name  = "afyabridge-gh-private-services"
+    address       = "10.20.240.0"
+    prefix_length = 20
+  }
+  za = {
+    address_name  = "afyabridge-za-private-services"
+    address       = "10.30.240.0"
+    prefix_length = 20
+  }
+}
+
 country_networks = {
   ke = {
     host_project_id = "afyabridge-ke-net-host"
