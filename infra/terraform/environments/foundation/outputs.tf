@@ -31,8 +31,8 @@ output "country_project_ids" {
 output "control_inventory" {
   description = "Logical inventory of composed policy, IAM, and budget controls."
   value = {
-    policy_scopes    = sort(keys(local.policy_parents))
-    iam_projects     = sort(keys(module.project_iam))
+    policy_scopes     = sort(keys(local.policy_parents))
+    iam_projects      = sort(keys(module.project_iam))
     budgeted_projects = sort(keys(module.project_budgets))
   }
 }
