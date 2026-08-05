@@ -1,0 +1,46 @@
+name: Terraform foundation
+
+on:
+  pull_request:
+    paths:
+      - ".terraform-version"
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-foundation.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".terraform-version"
+      - "infra/terraform/**"
+      - ".github/workflows/terraform-foundation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terraform-foundation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive infra/terraform
+
+      - name: Initialize bootstrap configuration
+        run: terraform -chdir=infra/terraform/bootstrap init -backend=false -input=false
+
+      - name: Validate bootstrap configuration
+        run: terraform -chdir=infra/terraform/bootstrap validate -no-color
