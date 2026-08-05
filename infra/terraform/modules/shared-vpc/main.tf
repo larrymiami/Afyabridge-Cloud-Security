@@ -1,8 +1,8 @@
 resource "google_compute_network" "this" {
-  project                 = var.host_project_id
-  name                    = var.network_name
-  auto_create_subnetworks = false
-  routing_mode            = var.routing_mode
+  project                         = var.host_project_id
+  name                            = var.network_name
+  auto_create_subnetworks         = false
+  routing_mode                    = var.routing_mode
   delete_default_routes_on_create = true
 }
 
