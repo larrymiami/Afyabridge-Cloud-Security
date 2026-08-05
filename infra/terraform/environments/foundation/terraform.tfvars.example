@@ -1,23 +1,9 @@
+organization_id    = "123456789012"
 billing_account_id = "000000-000000-000000"
 
-folders = {
-  shared = "100000000001"
-  ke = {
-    dev  = "100000000011"
-    stg  = "100000000012"
-    prod = "100000000013"
-  }
-  gh = {
-    dev  = "100000000021"
-    stg  = "100000000022"
-    prod = "100000000023"
-  }
-  za = {
-    dev  = "100000000031"
-    stg  = "100000000032"
-    prod = "100000000033"
-  }
-}
+budget_notification_channels = [
+  "projects/afyabridge-shared-security/notificationChannels/0000000000000000001"
+]
 
 projects = {
   shared-security = {
@@ -30,10 +16,17 @@ projects = {
     cost_center         = "shared-security"
     data_classification = "confidential"
     activate_apis = [
+      "billingbudgets.googleapis.com",
       "cloudasset.googleapis.com",
       "logging.googleapis.com",
       "monitoring.googleapis.com"
     ]
+    iam_bindings = {
+      "roles/viewer" = [
+        "group:cloud-security@example.org"
+      ]
+    }
+    monthly_budget_amount = 250
   }
 
   ke-dev-app = {
@@ -50,6 +43,12 @@ projects = {
       "run.googleapis.com",
       "secretmanager.googleapis.com"
     ]
+    iam_bindings = {
+      "roles/viewer" = [
+        "group:ke-security@example.org"
+      ]
+    }
+    monthly_budget_amount = 150
   }
 
   gh-dev-app = {
@@ -66,6 +65,7 @@ projects = {
       "run.googleapis.com",
       "secretmanager.googleapis.com"
     ]
+    monthly_budget_amount = 150
   }
 
   za-dev-app = {
@@ -82,5 +82,6 @@ projects = {
       "run.googleapis.com",
       "secretmanager.googleapis.com"
     ]
+    monthly_budget_amount = 150
   }
 }
