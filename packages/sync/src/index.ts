@@ -11,7 +11,8 @@ const countryScopedIdSchema = z
   .min(4)
   .refine((value) => /^(KE|GH|ZA)_[A-Za-z0-9][A-Za-z0-9_-]*$/.test(value), {
     message: "Expected a country-scoped identifier",
-  });
+  })
+  .transform((value): CountryScopedId => value as CountryScopedId);
 
 export const syncOperationSchema = z
   .object({
