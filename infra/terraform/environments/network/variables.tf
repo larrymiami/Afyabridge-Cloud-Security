@@ -48,6 +48,7 @@ variable "country_networks" {
         for subnet in values(network.subnets) : subnet.ip_cidr_range
       ]
     ]))
+
     error_message = "Primary subnet CIDR ranges must be unique across all country networks."
   }
 }
