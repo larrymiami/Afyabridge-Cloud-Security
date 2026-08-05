@@ -18,14 +18,19 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     const { householdId } = await context.params;
 
     if (!isCountryScopedId(householdId, actor.scope.country)) {
-      return Response.json({ error: { code: "NOT_FOUND", message: "Household not found" } }, { status: 404 });
+      return Response.json(
+        { error: { code: "NOT_FOUND", message: "Household not found" } },
+        { status: 404, headers: { "Cache-Control": "no-store" } }
+      );
     }
 
     requireAuthorization(
       authorizeHouseholdAction(actor, "household:read", {
         country: actor.scope.country,
         programmeId: actor.scope.programmeId,
-        facilityId: actor.scope.facilityId,
+        ...(actor.scope.facilityId
+          ? { facilityId: actor.scope.facilityId }
+          : {}),
       })
     );
 
@@ -33,7 +38,10 @@ export async function GET(_request: Request, context: RouteContext): Promise<Res
     const household = await repository.findAuthorizedById(actor, householdId);
 
     if (!household) {
-      return Response.json({ error: { code: "NOT_FOUND", message: "Household not found" } }, { status: 404 });
+      return Response.json(
+        { error: { code: "NOT_FOUND", message: "Household not found" } },
+        { status: 404, headers: { "Cache-Control": "no-store" } }
+      );
     }
 
     return Response.json({ household }, { headers: { "Cache-Control": "no-store" } });
