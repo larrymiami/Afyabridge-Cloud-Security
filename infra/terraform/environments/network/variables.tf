@@ -39,16 +39,7 @@ variable "country_networks" {
   }
 
   validation {
-    condition = length(distinct(flatten([
-      for network in values(var.country_networks) : [
-        for subnet in values(network.subnets) : subnet.ip_cidr_range
-      ]
-    ]))) == length(flatten([
-      for network in values(var.country_networks) : [
-        for subnet in values(network.subnets) : subnet.ip_cidr_range
-      ]
-    ]))
-
+    condition     = length(distinct(flatten([for network in values(var.country_networks) : [for subnet in values(network.subnets) : subnet.ip_cidr_range]]))) == length(flatten([for network in values(var.country_networks) : [for subnet in values(network.subnets) : subnet.ip_cidr_range]]))
     error_message = "Primary subnet CIDR ranges must be unique across all country networks."
   }
 }
