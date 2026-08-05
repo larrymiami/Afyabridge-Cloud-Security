@@ -16,9 +16,11 @@
   "dependencies": {
     "@afyabridge/config": "workspace:*",
     "@afyabridge/shared": "workspace:*",
+    "@afyabridge/sync": "workspace:*",
     "postgres": "^3.4.7"
   },
   "devDependencies": {
+    "@types/node": "^24.0.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   }
