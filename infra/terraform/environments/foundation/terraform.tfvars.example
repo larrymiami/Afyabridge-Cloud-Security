@@ -1,0 +1,86 @@
+billing_account_id = "000000-000000-000000"
+
+folders = {
+  shared = "100000000001"
+  ke = {
+    dev  = "100000000011"
+    stg  = "100000000012"
+    prod = "100000000013"
+  }
+  gh = {
+    dev  = "100000000021"
+    stg  = "100000000022"
+    prod = "100000000023"
+  }
+  za = {
+    dev  = "100000000031"
+    stg  = "100000000032"
+    prod = "100000000033"
+  }
+}
+
+projects = {
+  shared-security = {
+    project_id          = "afyabridge-shared-security"
+    project_name        = "AfyaBridge Shared Security"
+    country             = "global"
+    environment         = "shared"
+    service             = "security"
+    owner               = "platform-security"
+    cost_center         = "shared-security"
+    data_classification = "confidential"
+    activate_apis = [
+      "cloudasset.googleapis.com",
+      "logging.googleapis.com",
+      "monitoring.googleapis.com"
+    ]
+  }
+
+  ke-dev-app = {
+    project_id          = "afyabridge-ke-dev-app"
+    project_name        = "AfyaBridge Kenya Development App"
+    country             = "ke"
+    environment         = "dev"
+    service             = "application"
+    owner               = "product-engineering"
+    cost_center         = "kenya-programme"
+    data_classification = "restricted"
+    activate_apis = [
+      "artifactregistry.googleapis.com",
+      "run.googleapis.com",
+      "secretmanager.googleapis.com"
+    ]
+  }
+
+  gh-dev-app = {
+    project_id          = "afyabridge-gh-dev-app"
+    project_name        = "AfyaBridge Ghana Development App"
+    country             = "gh"
+    environment         = "dev"
+    service             = "application"
+    owner               = "product-engineering"
+    cost_center         = "ghana-programme"
+    data_classification = "restricted"
+    activate_apis = [
+      "artifactregistry.googleapis.com",
+      "run.googleapis.com",
+      "secretmanager.googleapis.com"
+    ]
+  }
+
+  za-dev-app = {
+    project_id          = "afyabridge-za-dev-app"
+    project_name        = "AfyaBridge South Africa Development App"
+    country             = "za"
+    environment         = "dev"
+    service             = "application"
+    owner               = "product-engineering"
+    cost_center         = "south-africa-programme"
+    data_classification = "restricted"
+    activate_apis = [
+      "artifactregistry.googleapis.com",
+      "run.googleapis.com",
+      "secretmanager.googleapis.com"
+    ]
+  }
+}
