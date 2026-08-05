@@ -103,7 +103,8 @@
 ## v0.6 — Application security baseline
 
 **Status:** In review  
-**Control state:** Implemented; automated validation pending
+**Control state:** Implemented and validated  
+**Validated:** Application baseline workflow run #27 on commit `e3eb19f7aad2c844f38daeb924d6cd0c9b863ed1`
 
 - [x] Establish the pnpm TypeScript monorepo and local PostgreSQL environment
 - [x] Build the minimum community-health web application and health endpoint
@@ -121,8 +122,8 @@
 - [x] Add migration and synthetic-data seed tooling
 - [x] Add the application-baseline GitHub Actions workflow
 - [x] Document application boundaries, authentication, authorization, validation, audit, offline sync, errors, abuse controls, tests, and diagrams
-- [ ] Obtain a successful GitHub Actions run for the reviewed pull-request revision
-- [ ] Inspect CI evidence and resolve failures before merge
+- [x] Obtain a successful GitHub Actions run for the reviewed pull-request revision
+- [x] Inspect CI evidence and resolve failures before merge
 
 **Known boundary:** The local `x-afyabridge-actor` header is an integration seam for exercising downstream controls. Production must replace it with a trusted, integrity-protected identity assertion. Patient and referral workflows are not implemented in this minimal baseline.
 
