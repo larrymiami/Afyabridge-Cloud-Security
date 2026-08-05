@@ -1,0 +1,10 @@
+bootstrap_project_id         = "replace-with-bootstrap-project-id"
+state_bucket_name           = "replace-with-globally-unique-state-bucket"
+region                      = "africa-south1"
+terraform_service_account_id = "terraform-deployer"
+state_retention_days        = 30
+
+labels = {
+  owner       = "platform-security"
+  cost_center = "shared-security"
+}
