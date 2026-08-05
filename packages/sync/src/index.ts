@@ -13,21 +13,40 @@ const countryScopedIdSchema = z
     message: "Expected a country-scoped identifier",
   });
 
-export const syncOperationSchema = z.object({
-  operationId: z.string().uuid(),
-  deviceId: z.string().min(8).max(128),
-  sequence: z.number().int().nonnegative(),
-  country: z.enum(["KE", "GH", "ZA"]),
-  programmeId: countryScopedIdSchema,
-  facilityId: countryScopedIdSchema.optional(),
-  assignmentId: countryScopedIdSchema.optional(),
-  entityType: z.enum(["household"]),
-  entityId: countryScopedIdSchema,
-  action: z.enum(["create", "update"]),
-  baseVersion: z.number().int().nonnegative(),
-  occurredAt: z.string().datetime({ offset: true }),
-  payload: z.record(z.string(), z.unknown()),
-});
+export const syncOperationSchema = z
+  .object({
+    operationId: z.string().uuid(),
+    deviceId: z.string().min(8).max(128),
+    sequence: z.number().int().nonnegative(),
+    country: z.enum(["KE", "GH", "ZA"]),
+    programmeId: countryScopedIdSchema,
+    facilityId: countryScopedIdSchema.optional(),
+    assignmentId: countryScopedIdSchema.optional(),
+    entityType: z.enum(["household"]),
+    entityId: countryScopedIdSchema,
+    action: z.enum(["create", "update"]),
+    baseVersion: z.number().int().nonnegative(),
+    occurredAt: z.string().datetime({ offset: true }),
+    payload: z.record(z.string(), z.unknown()),
+  })
+  .superRefine((operation, context) => {
+    const scopedValues = [
+      ["programmeId", operation.programmeId],
+      ["facilityId", operation.facilityId],
+      ["assignmentId", operation.assignmentId],
+      ["entityId", operation.entityId],
+    ] as const;
+
+    for (const [field, value] of scopedValues) {
+      if (value && !value.startsWith(`${operation.country}_`)) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: "Identifier does not match the operation country",
+        });
+      }
+    }
+  });
 
 export type SyncOperation = z.infer<typeof syncOperationSchema>;
 
