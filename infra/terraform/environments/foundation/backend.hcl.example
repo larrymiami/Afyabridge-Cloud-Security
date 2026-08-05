@@ -1,0 +1,2 @@
+bucket = "REPLACE_WITH_BOOTSTRAP_STATE_BUCKET"
+prefix = "foundation/project-factory"
