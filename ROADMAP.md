@@ -20,8 +20,8 @@
 | v0.3 | Identity and access architecture | **Completed** |
 | v0.4 | Network and perimeter architecture | **Completed** |
 | v0.5 | Data protection and encryption architecture | **Completed** |
-| v0.6 | Application security baseline | **In review** |
-| v0.7 | Infrastructure as code and secure GCP deployment | **Planned** |
+| v0.6 | Application security baseline | **Completed** |
+| v0.7 | Infrastructure as code and secure GCP deployment | **In review** |
 | v0.8 | Shift-left CI/CD security pipeline | **Planned** |
 | v0.9 | Software supply-chain security | **Planned** |
 | v0.10 | Cloud security posture and governance | **Planned** |
@@ -102,8 +102,9 @@
 
 ## v0.6 — Application security baseline
 
-**Status:** In review  
+**Status:** Completed  
 **Control state:** Implemented and validated  
+**Merged:** PR #6  
 **Validated:** Application baseline workflow run #27 on commit `e3eb19f7aad2c844f38daeb924d6cd0c9b863ed1`
 
 - [x] Establish the pnpm TypeScript monorepo and local PostgreSQL environment
@@ -127,23 +128,33 @@
 
 **Known boundary:** The local `x-afyabridge-actor` header is an integration seam for exercising downstream controls. Production must replace it with a trusted, integrity-protected identity assertion. Patient and referral workflows are not implemented in this minimal baseline.
 
-**Merge condition:** The application-baseline workflow must pass from a clean database, including migrations, synthetic seeding, type checks, tests, and builds. Review must confirm that no real patient data, secrets, or production identity assumptions are present.
-
 **Primary outcome:** A small, realistic application that exercises identity, authorization, persistence, offline synchronization, data isolation, and security validation controls.
 
 ---
 
 ## v0.7 — Infrastructure as code and secure GCP deployment
 
-**Status:** Planned  
-**Target control state:** Implemented and validated
+**Status:** In review  
+**Control state:** Partially implemented; static validation complete, deployment validation pending
 
-- [ ] Implement Terraform bootstrap and project-factory modules
+- [x] Implement the protected Terraform bootstrap, remote state, encryption, and execution-identity foundation
+- [x] Implement the project factory and authoritative multi-country project inventory
+- [x] Implement shared-services, Kenya, Ghana, and South Africa folder hierarchy modules
+- [x] Implement baseline folder policies preventing service-account key creation and upload
+- [x] Implement additive project IAM with public-principal rejection
+- [x] Implement project budgets and notification-threshold contracts
+- [x] Add bootstrap and foundation deployment runbooks
+- [x] Record successful static Terraform validation evidence for v0.7A and v0.7B
+- [ ] Apply and validate the bootstrap and foundation stacks in a reviewed Google Cloud environment
 - [ ] Implement country and non-production Shared VPC modules
-- [ ] Implement network, IAM, federation, logging, and monitoring controls
+- [ ] Implement network, federation, logging, and monitoring controls
 - [ ] Deploy Cloud Run workloads, managed databases, and object storage
 - [ ] Configure Artifact Registry, Secret Manager, Cloud KMS, edge security, DNS, and certificates
-- [ ] Add validation evidence, bootstrap, deployment, rollback, and recovery runbooks
+- [ ] Add deployment, rollback, recovery, and runtime validation evidence
+
+**Validated:** Terraform foundation workflow run #25 on commit `0965ade4395c94d46cd35c55f4b86d712faa3f1c` completed formatting, backend-free initialization, and static validation for the bootstrap and composed foundation roots.
+
+**Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Folder creation, project placement, effective organization policies, IAM propagation, budget alerts, remote-state behavior, and cross-country isolation remain deployment-validation requirements.
 
 **Primary outcome:** Reproducible infrastructure that implements the reviewed architecture without relying on manual console configuration.
 
