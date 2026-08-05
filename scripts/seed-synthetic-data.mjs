@@ -14,7 +14,8 @@ const households = [
     programmeId: "KE_programme_demo",
     facilityId: "KE_facility_nairobi",
     assignmentId: "KE_assignment_demo",
-    displayName: "Synthetic Kenya Household"
+    displayName: "Synthetic Kenya Household",
+    createdBy: "seed-script",
   },
   {
     id: "GH_household_demo_001",
@@ -22,7 +23,8 @@ const households = [
     programmeId: "GH_programme_demo",
     facilityId: "GH_facility_accra",
     assignmentId: "GH_assignment_demo",
-    displayName: "Synthetic Ghana Household"
+    displayName: "Synthetic Ghana Household",
+    createdBy: "seed-script",
   },
   {
     id: "ZA_household_demo_001",
@@ -30,34 +32,37 @@ const households = [
     programmeId: "ZA_programme_demo",
     facilityId: "ZA_facility_johannesburg",
     assignmentId: "ZA_assignment_demo",
-    displayName: "Synthetic South Africa Household"
-  }
+    displayName: "Synthetic South Africa Household",
+    createdBy: "seed-script",
+  },
 ];
 
 try {
   for (const household of households) {
     await sql`
-      insert into households (
-        id,
-        country,
-        programme_id,
-        facility_id,
-        assignment_id,
-        display_name,
-        version
-      ) values (
-        ${household.id},
-        ${household.country},
-        ${household.programmeId},
-        ${household.facilityId},
-        ${household.assignmentId},
-        ${household.displayName},
-        1
-      )
-      on conflict (id) do update set
-        display_name = excluded.display_name,
-        updated_at = now()
-    `;
+  insert into households (
+    id,
+    country,
+    programme_id,
+    facility_id,
+    assignment_id,
+    display_name,
+    created_by,
+    version
+  ) values (
+    ${household.id},
+    ${household.country},
+    ${household.programmeId},
+    ${household.facilityId},
+    ${household.assignmentId},
+    ${household.displayName},
+    ${household.createdBy},
+    1
+  )
+  on conflict (id) do update set
+    display_name = excluded.display_name,
+    updated_at = now()
+`;
   }
 
   console.log(`Seeded ${households.length} synthetic households`);
