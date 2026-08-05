@@ -1,6 +1,11 @@
 import { getEnvironment } from "@afyabridge/config";
 import postgres, { type Sql } from "postgres";
 
+export {
+  claimSyncOperation,
+  completeSyncOperation,
+} from "./repositories/sync-operations";
+
 let client: Sql | undefined;
 
 export function getDatabase(): Sql {
@@ -15,7 +20,7 @@ export function getDatabase(): Sql {
     idle_timeout: 20,
     connect_timeout: 10,
     prepare: false,
-    onnotice: () => undefined
+    onnotice: () => undefined,
   });
 
   return client;
