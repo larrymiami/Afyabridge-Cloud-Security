@@ -65,14 +65,19 @@ export function createAuditEvent(input: {
       roles: input.actor.roles,
     },
     scope: input.actor.scope,
-    resource: input.resourceType
-      ? { type: input.resourceType, id: input.resourceId }
-      : undefined,
+    ...(input.resourceType
+      ? {
+          resource: {
+            type: input.resourceType,
+            ...(input.resourceId ? { id: input.resourceId } : {}),
+          },
+        }
+      : {}),
     request: {
       requestId: input.requestId,
       method: input.method,
       path: input.path,
     },
-    reason: input.reason,
+    ...(input.reason ? { reason: input.reason } : {}),
   };
 }
