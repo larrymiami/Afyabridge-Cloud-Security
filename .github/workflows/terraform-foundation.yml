@@ -44,3 +44,9 @@ jobs:
 
       - name: Validate bootstrap configuration
         run: terraform -chdir=infra/terraform/bootstrap validate -no-color
+
+      - name: Initialize foundation configuration
+        run: terraform -chdir=infra/terraform/environments/foundation init -backend=false -input=false
+
+      - name: Validate foundation configuration
+        run: terraform -chdir=infra/terraform/environments/foundation validate -no-color
