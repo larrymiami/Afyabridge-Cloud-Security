@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { AuthenticationError } from "@afyabridge/auth";
 import { AuthorizationError } from "@afyabridge/authorization";
-import { securityErrorResponse } from "../src/lib/security/request-context";
+import { securityErrorResponse } from "../src/lib/security/request-context.ts";
 
 test("authentication failures return generic no-store responses", async () => {
   const response = securityErrorResponse(new AuthenticationError("sensitive detail"));
