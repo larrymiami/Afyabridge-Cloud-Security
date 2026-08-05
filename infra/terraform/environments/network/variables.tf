@@ -39,7 +39,7 @@ variable "country_networks" {
   }
 
   validation {
-    condition     = length(distinct(flatten([
+    condition = length(distinct(flatten([
       for network in values(var.country_networks) : [
         for subnet in values(network.subnets) : subnet.ip_cidr_range
       ]
