@@ -1,8 +1,8 @@
-import { getDatabase } from "@afyabridge/database";
 import {
   claimSyncOperation,
   completeSyncOperation,
-} from "@afyabridge/database/src/repositories/sync-operations";
+  getDatabase,
+} from "@afyabridge/database";
 import { parseAuthenticatedActor } from "@afyabridge/auth";
 import {
   authorizeSyncOperation,
