@@ -51,6 +51,9 @@ importers:
       '@afyabridge/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@afyabridge/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@afyabridge/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -79,6 +82,9 @@ importers:
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@24.13.3)
 
   packages/audit:
     dependencies:
@@ -134,10 +140,16 @@ importers:
       '@afyabridge/shared':
         specifier: workspace:*
         version: link:../shared
+      '@afyabridge/sync':
+        specifier: workspace:*
+        version: link:../sync
       postgres:
         specifier: ^3.4.7
         version: 3.4.9
     devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
       typescript:
         specifier: ^5.9.0
         version: 5.9.3
