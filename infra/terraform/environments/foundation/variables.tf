@@ -1,43 +1,61 @@
+variable "organization_id" {
+  description = "Numeric Google Cloud organization ID used to create the managed folder hierarchy."
+  type        = string
+}
+
 variable "billing_account_id" {
-  description = "Billing account attached to all managed projects."
+  description = "Billing account attached to managed projects and project budgets."
   type        = string
   sensitive   = true
 }
 
-variable "folders" {
-  description = "Folder IDs for shared services and country environments."
-  type = object({
-    shared = string
-    ke = object({
-      dev  = string
-      stg  = string
-      prod = string
-    })
-    gh = object({
-      dev  = string
-      stg  = string
-      prod = string
-    })
-    za = object({
-      dev  = string
-      stg  = string
-      prod = string
-    })
-  })
+variable "countries" {
+  description = "Authoritative country folder inventory and approved environments."
+  type = map(object({
+    display_name = string
+    environments = set(string)
+  }))
+
+  default = {
+    ke = {
+      display_name = "Kenya"
+      environments = ["dev", "stg", "prod"]
+    }
+    gh = {
+      display_name = "Ghana"
+      environments = ["dev", "stg", "prod"]
+    }
+    za = {
+      display_name = "South Africa"
+      environments = ["dev", "stg", "prod"]
+    }
+  }
+}
+
+variable "baseline_boolean_policies" {
+  description = "Boolean organization policies applied to shared and country folders."
+  type        = map(bool)
+  default = {
+    "iam.disableServiceAccountKeyCreation" = true
+    "iam.disableServiceAccountKeyUpload"   = true
+  }
 }
 
 variable "projects" {
   description = "Authoritative project inventory keyed by stable logical name."
   type = map(object({
-    project_id          = string
-    project_name        = string
-    country             = string
-    environment         = string
-    service             = string
-    owner               = string
-    cost_center         = string
-    data_classification = string
-    activate_apis       = set(string)
+    project_id            = string
+    project_name          = string
+    country               = string
+    environment           = string
+    service               = string
+    owner                 = string
+    cost_center           = string
+    data_classification   = string
+    activate_apis         = set(string)
+    iam_bindings          = optional(map(set(string)), {})
+    monthly_budget_amount = optional(number)
+    budget_currency_code  = optional(string, "USD")
   }))
 
   validation {
@@ -63,4 +81,18 @@ variable "projects" {
     ])
     error_message = "Global projects must be shared, and shared projects must be global."
   }
+
+  validation {
+    condition = alltrue([
+      for project in values(var.projects) :
+      project.monthly_budget_amount == null || project.monthly_budget_amount > 0
+    ])
+    error_message = "Configured monthly budgets must be greater than zero."
+  }
+}
+
+variable "budget_notification_channels" {
+  description = "Cloud Monitoring notification channels used by all configured project budgets."
+  type        = set(string)
+  default     = []
 }
