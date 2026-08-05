@@ -44,7 +44,10 @@ jobs:
 
     env:
       NODE_ENV: test
+      APP_ENV: development
       APP_COUNTRY: KE
+      APP_BASE_URL: http://localhost:3000
+      LOG_LEVEL: info
       DATABASE_URL: postgresql://afyabridge:afyabridge-local-only@127.0.0.1:5432/afyabridge
 
     steps:
