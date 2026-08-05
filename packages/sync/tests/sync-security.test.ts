@@ -70,15 +70,11 @@ test("rejects a different device", () => {
   if (!result.allowed) assert.equal(result.reason, "device_mismatch");
 });
 
-test("rejects a cross-country entity identifier", () => {
-  const result = authorizeSyncOperation(
-    actor,
-    binding,
-    operation({ entityId: "GH_household-1" }),
-    new Date("2026-08-05T08:05:00.000Z")
+test("rejects a cross-country entity identifier during parsing", () => {
+  assert.throws(
+    () => operation({ entityId: "GH_household-1" }),
+    /Identifier does not match the operation country/
   );
-  assert.equal(result.allowed, false);
-  if (!result.allowed) assert.equal(result.reason, "identifier_mismatch");
 });
 
 test("rejects revoked devices", () => {
