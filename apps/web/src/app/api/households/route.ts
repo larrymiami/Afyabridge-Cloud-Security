@@ -35,8 +35,12 @@ export async function POST(request: Request): Promise<Response> {
       {
         country: input.country,
         programmeId: input.programmeId as CountryScopedId,
-        facilityId: input.facilityId as CountryScopedId | undefined,
-        assignmentId: input.assignmentId as CountryScopedId | undefined,
+        ...(input.facilityId
+          ? { facilityId: input.facilityId as CountryScopedId }
+          : {}),
+        ...(input.assignmentId
+          ? { assignmentId: input.assignmentId as CountryScopedId }
+          : {}),
       }
     );
 
@@ -63,8 +67,8 @@ export async function POST(request: Request): Promise<Response> {
           id: householdId,
           country: input.country,
           programmeId: input.programmeId,
-          facilityId: input.facilityId,
-          assignmentId: input.assignmentId,
+          ...(input.facilityId ? { facilityId: input.facilityId } : {}),
+          ...(input.assignmentId ? { assignmentId: input.assignmentId } : {}),
           householdReference: input.householdReference,
           village: input.village,
           persistenceStatus: "not_yet_persisted",
