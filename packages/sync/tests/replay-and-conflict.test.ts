@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { authorizeSyncOperation, parseSyncOperation } from "../src/index.ts";
+import { authorizeSyncOperation, parseSyncOperation } from "../src/index";
 
 const actor = {
   actorId: "worker-1",
