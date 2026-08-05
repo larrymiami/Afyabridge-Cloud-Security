@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
-import { after, before, test } from "node:test";
 
 import postgres, { type Sql } from "postgres";
+import { afterAll, beforeAll, test } from "vitest";
 
 let sql: Sql;
 
-before(async () => {
+beforeAll(async () => {
   const databaseUrl = process.env.DATABASE_URL;
   assert.ok(databaseUrl, "DATABASE_URL must be configured");
   sql = postgres(databaseUrl, { max: 1, prepare: false });
 });
 
-after(async () => {
+afterAll(async () => {
   await sql.end({ timeout: 5 });
 });
 
@@ -25,6 +25,7 @@ test("country constraints reject mismatched identifiers", async () => {
         facility_id,
         assignment_id,
         display_name,
+        created_by,
         version
       ) values (
         'GH_household_invalid_country',
@@ -33,6 +34,7 @@ test("country constraints reject mismatched identifiers", async () => {
         'KE_facility_nairobi',
         'KE_assignment_demo',
         'Invalid synthetic household',
+        'KE_actor_test',
         1
       )
     `
