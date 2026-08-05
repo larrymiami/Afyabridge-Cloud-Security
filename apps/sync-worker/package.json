@@ -1,0 +1,23 @@
+{
+  "name": "@afyabridge/sync-worker",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@afyabridge/audit": "workspace:*",
+    "@afyabridge/auth": "workspace:*",
+    "@afyabridge/database": "workspace:*",
+    "@afyabridge/sync": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0"
+  }
+}
