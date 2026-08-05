@@ -56,9 +56,9 @@ export function parseAuthenticatedActor(input: unknown): AuthenticatedActor {
     scope: {
       country,
       programmeId: assertScopedToCountry(programmeId, country),
-      facilityId: facilityId
-        ? assertScopedToCountry(facilityId, country)
-        : undefined,
+      ...(facilityId
+        ? { facilityId: assertScopedToCountry(facilityId, country) }
+        : {}),
       assignmentIds: assignmentIds.map((id) => assertScopedToCountry(id, country)),
     },
   };
