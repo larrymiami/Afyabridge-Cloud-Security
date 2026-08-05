@@ -92,10 +92,12 @@ export function authorizeHouseholdAction(
 export class AuthorizationError extends Error {
   readonly statusCode = 403;
   readonly code = "ACCESS_DENIED";
+  readonly decision: AuthorizationDecision;
 
-  constructor(readonly decision: AuthorizationDecision) {
+  constructor(decision: AuthorizationDecision) {
     super("The actor is not authorized for this operation");
     this.name = "AuthorizationError";
+    this.decision = decision;
   }
 }
 
