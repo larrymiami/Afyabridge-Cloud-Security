@@ -32,7 +32,10 @@ resource "google_compute_firewall" "this" {
     }
   }
 
-  log_config {
-    metadata = each.value.enable_logging ? "INCLUDE_ALL_METADATA" : "EXCLUDE_ALL_METADATA"
+  dynamic "log_config" {
+    for_each = each.value.enable_logging ? [1] : []
+    content {
+      metadata = "INCLUDE_ALL_METADATA"
+    }
   }
 }
