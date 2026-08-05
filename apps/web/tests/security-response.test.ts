@@ -1,5 +1,4 @@
-import assert from "node:assert/strict";
-import test from "node:test";
+import { expect, test } from "vitest";
 
 import { AuthenticationError } from "@afyabridge/auth";
 import { AuthorizationError } from "@afyabridge/authorization";
@@ -9,11 +8,11 @@ test("authentication failures return generic no-store responses", async () => {
   const response = securityErrorResponse(new AuthenticationError("sensitive detail"));
   const body = await response.json();
 
-  assert.equal(response.status, 401);
-  assert.equal(response.headers.get("Cache-Control"), "no-store");
-  assert.equal(body.error.code, "AUTHENTICATION_REQUIRED");
-  assert.equal(body.error.message, "The request was not authorized");
-  assert.equal(JSON.stringify(body).includes("sensitive detail"), false);
+  expect(response.status).toBe(401);
+  expect(response.headers.get("Cache-Control")).toBe("no-store");
+  expect(body.error.code).toBe("AUTHENTICATION_REQUIRED");
+  expect(body.error.message).toBe("The request was not authorized");
+  expect(JSON.stringify(body)).not.toContain("sensitive detail");
 });
 
 test("authorization failures do not expose policy reasons", async () => {
@@ -22,17 +21,17 @@ test("authorization failures do not expose policy reasons", async () => {
   );
   const body = await response.json();
 
-  assert.equal(response.status, 403);
-  assert.equal(body.error.code, "ACCESS_DENIED");
-  assert.equal(JSON.stringify(body).includes("country_mismatch"), false);
+  expect(response.status).toBe(403);
+  expect(body.error.code).toBe("ACCESS_DENIED");
+  expect(JSON.stringify(body)).not.toContain("country_mismatch");
 });
 
 test("unexpected failures return stable internal responses", async () => {
   const response = securityErrorResponse(new Error("database credentials leaked"));
   const body = await response.json();
 
-  assert.equal(response.status, 500);
-  assert.equal(body.error.code, "INTERNAL_ERROR");
-  assert.equal(body.error.message, "The request could not be completed");
-  assert.equal(JSON.stringify(body).includes("database credentials"), false);
+  expect(response.status).toBe(500);
+  expect(body.error.code).toBe("INTERNAL_ERROR");
+  expect(body.error.message).toBe("The request could not be completed");
+  expect(JSON.stringify(body)).not.toContain("database credentials");
 });
