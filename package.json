@@ -1,0 +1,26 @@
+{
+  "name": "afyabridge-cloud-security",
+  "version": "0.6.0",
+  "private": true,
+  "packageManager": "pnpm@10.14.0",
+  "engines": {
+    "node": ">=22.9.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @afyabridge/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "node --env-file-if-exists=.env scripts/run-migrations.mjs",
+    "db:seed": "node --env-file-if-exists=.env scripts/seed-synthetic-data.mjs",
+    "validate:application": "pnpm db:migrate && pnpm db:seed && pnpm check"
+  },
+  "devDependencies": {
+    "postgres": "^3.4.7",
+    "typescript": "^5.9.0"
+  }
+}

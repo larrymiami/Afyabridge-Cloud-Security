@@ -1,0 +1,27 @@
+{
+  "name": "@afyabridge/database",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./households": "./src/repositories/households.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@afyabridge/config": "workspace:*",
+    "@afyabridge/shared": "workspace:*",
+    "@afyabridge/sync": "workspace:*",
+    "postgres": "^3.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}
