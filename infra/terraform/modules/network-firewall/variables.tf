@@ -9,7 +9,7 @@ variable "network_name" {
 }
 
 variable "allow_public_ingress" {
-  description = "Explicit exception switch permitting 0.0.0.0/0 or ::/0 ingress sources."
+  description = "Explicit exception switch permitting public ingress allow rules."
   type        = bool
   default     = false
 }
@@ -63,8 +63,8 @@ variable "rules" {
   validation {
     condition = var.allow_public_ingress || alltrue([
       for rule in values(var.rules) :
-      rule.direction != "INGRESS" || length(setintersection(rule.source_ranges, ["0.0.0.0/0", "::/0"])) == 0
+      rule.direction != "INGRESS" || length(rule.allow) == 0 || length(setintersection(rule.source_ranges, ["0.0.0.0/0", "::/0"])) == 0
     ])
-    error_message = "Public ingress ranges require allow_public_ingress to be explicitly enabled."
+    error_message = "Public ingress allow rules require allow_public_ingress to be explicitly enabled."
   }
 }
