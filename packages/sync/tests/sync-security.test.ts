@@ -7,7 +7,7 @@ import {
   authorizeSyncOperation,
   parseSyncOperation,
   type SyncDeviceBinding,
-} from "../src/index.js";
+} from "../src/index.ts";
 
 const actor: AuthenticatedActor = {
   actorId: "chw-001",
