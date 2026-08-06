@@ -24,19 +24,21 @@ The deployment path must:
 
 The federation root creates:
 
-- one Google Cloud Workload Identity Pool;
-- a dedicated GitHub OIDC provider for Terraform plan jobs;
-- a separate GitHub OIDC provider for protected apply jobs;
+- one Google Cloud Workload Identity Pool dedicated to Terraform plan jobs;
+- one Google Cloud Workload Identity Pool dedicated to protected Terraform apply jobs;
+- exactly one GitHub OIDC provider in each pool;
 - one Terraform plan service account;
 - one Terraform apply service account;
 - additive project IAM grants supplied through reviewed role inputs;
 - service-account impersonation bindings using `roles/iam.workloadIdentityUser`.
 
+The separate pools isolate plan and apply subject namespaces, provider administration, and principal-set bindings. A plan-provider identity is not a member of the apply pool and cannot match the apply service account's federation binding.
+
 No service-account key resource is declared.
 
 ## Immutable repository binding
 
-The providers validate all of the following claims:
+Both providers validate all of the following claims:
 
 - repository owner ID `97871935`;
 - repository ID `1310793524`;
@@ -46,7 +48,7 @@ The numeric identifiers protect against repository or account renaming and name 
 
 ## Plan trust path
 
-The plan provider maps a fixed `deployment_role` value of `plan`. Tokens accepted by this provider can impersonate only the Terraform plan service account.
+The plan provider is the only provider in the dedicated plan pool and maps a fixed `deployment_role` value of `plan`. Tokens accepted by this provider can impersonate only the Terraform plan service account.
 
 Accepted contexts are:
 
@@ -67,7 +69,7 @@ The plan workflow:
 
 ## Apply trust path
 
-The apply provider maps a fixed `deployment_role` value of `apply`. Tokens accepted by the plan provider cannot impersonate the apply service account.
+The apply provider is the only provider in the dedicated apply pool and maps a fixed `deployment_role` value of `apply`. Tokens accepted by the plan pool cannot match the apply pool's principal-set binding or impersonate the apply service account.
 
 The apply provider requires:
 
@@ -140,10 +142,10 @@ The bootstrap process must:
 1. review the Terraform configuration and role inputs;
 2. generate and review a plan using an approved administrative session;
 3. apply only the federation root;
-4. record the resource inventory and IAM bindings;
+4. record both pools, both providers, service accounts, and IAM bindings;
 5. configure repository and environment variables from Terraform outputs;
 6. configure the protected `production` environment;
-7. test positive and negative token-exchange scenarios;
+7. test positive and negative token-exchange scenarios for each pool;
 8. remove temporary bootstrap access.
 
 Creating a service-account key to bypass this sequence is prohibited.
@@ -152,17 +154,17 @@ Creating a service-account key to bypass this sequence is prohibited.
 
 Both OIDC providers expose a disabled control. In a suspected workflow or identity compromise:
 
-1. disable the providers;
+1. disable the affected provider, or both providers when scope is uncertain;
 2. stop deployment workflows;
 3. inspect GitHub and Google Cloud audit records;
-4. review environment approvals, workflow changes, IAM, and service-account impersonation;
+4. review environment approvals, workflow changes, IAM, pools, providers, and service-account impersonation;
 5. restore trust only after the cause is understood.
 
 Disabling federation does not revoke permissions granted independently to the service accounts or other identities.
 
 ## Validation boundary
 
-Static Terraform validation confirms syntax, module composition, and provider-schema compatibility. It does not prove:
+Static Terraform validation confirms syntax, module composition, lockfile compatibility, and provider-schema compatibility. It does not prove:
 
 - GitHub claim values;
 - attribute-condition behavior;
