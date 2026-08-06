@@ -51,6 +51,32 @@ module "country_firewalls" {
       }]
     }
 
+    allow-google-health-checks = {
+      name          = "${each.value.network_name}-allow-google-health-checks"
+      description   = "Allow Google Cloud health-check probes only to tagged backends."
+      direction     = "INGRESS"
+      priority      = 1100
+      source_ranges = ["35.191.0.0/16", "130.211.0.0/22"]
+      target_tags   = var.health_check_target_tags
+      allow = [{
+        protocol = "tcp"
+        ports    = var.health_check_ports
+      }]
+    }
+
+    allow-iap-admin = {
+      name          = "${each.value.network_name}-allow-iap-admin"
+      description   = "Allow SSH or RDP only through IAP TCP forwarding to explicitly tagged instances."
+      direction     = "INGRESS"
+      priority      = 1200
+      source_ranges = ["35.235.240.0/20"]
+      target_tags   = var.iap_admin_target_tags
+      allow = [{
+        protocol = "tcp"
+        ports    = var.iap_admin_ports
+      }]
+    }
+
     deny-other-ingress = {
       name          = "${each.value.network_name}-deny-other-ingress"
       description   = "Log and deny ingress not approved by a higher-priority rule."
