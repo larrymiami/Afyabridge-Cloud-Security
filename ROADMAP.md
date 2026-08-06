@@ -135,7 +135,7 @@
 ## v0.7 — Infrastructure as code and secure GCP deployment
 
 **Status:** In review  
-**Control state:** Partially implemented; static validation complete, deployment validation pending
+**Control state:** Implemented and statically validated; live deployment validation pending
 
 - [x] Implement the protected Terraform bootstrap, remote state, encryption, and execution-identity foundation
 - [x] Implement the project factory and authoritative multi-country project inventory
@@ -151,15 +151,22 @@
 - [x] Implement country-owned private service access ranges and private Google API DNS
 - [x] Implement country-specific Serverless VPC Access connectors with unique `/28` ranges
 - [x] Add network architecture documentation, deployment runbook, and v0.7C static-validation evidence
-- [ ] Apply and validate the bootstrap, foundation, and network stacks in a reviewed Google Cloud environment
+- [x] Implement country-scoped Artifact Registry repositories with immutable tags, cleanup-policy contracts, CMEK hooks, and non-public IAM
+- [x] Implement Secret Manager metadata with user-managed replication, delayed version destruction, rotation contracts, CMEK hooks, and no secret payloads in Terraform
+- [x] Implement country Cloud KMS key rings and symmetric keys with rotation, destruction delays, and additive IAM
+- [x] Implement Cloud Run runtime identities, private ingress, digest-pinned images, VPC connector egress, secret references, and non-public invocation
+- [x] Implement private-IP Cloud SQL for PostgreSQL with backups, point-in-time recovery, maintenance controls, CMEK hooks, and deletion protection
+- [x] Implement country Cloud Storage buckets with uniform access, public-access prevention, versioning, soft delete, lifecycle, retention, CMEK hooks, and destruction protection
+- [x] Add workload architecture documentation, deployment runbook, and v0.7D static-validation evidence
+- [x] Generate, review, commit, and validate the workload provider lockfile
+- [ ] Apply and validate the bootstrap, foundation, network, and workload stacks in a reviewed Google Cloud environment
 - [ ] Implement workload identity federation, centralized logging, monitoring, and detection controls
-- [ ] Deploy Cloud Run workloads, managed databases, and object storage
-- [ ] Configure Artifact Registry, Secret Manager, Cloud KMS, edge security, public DNS, and certificates
-- [ ] Add deployment, rollback, recovery, and runtime validation evidence
+- [ ] Configure edge security, public DNS, and certificates
+- [ ] Add live deployment, rollback, recovery, and runtime validation evidence
 
-**Validated:** Terraform infrastructure workflow run #70 on commit `13f8788e77077016f08a38f6988ed0d8792ee76d` completed formatting, backend-free initialization, and static validation for the bootstrap, foundation, and network roots.
+**Validated:** Terraform infrastructure workflow run #130 on commit `d7174726fb9a5ca48daf37e3737b0e6d9f62a5c7` completed recursive formatting checks and backend-free initialization and static validation for the bootstrap, foundation, network, and workload roots using the committed provider lockfiles.
 
-**Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Folder creation, project placement, effective organization policies, IAM propagation, budget alerts, remote-state behavior, routes, DNS, firewall enforcement, private-service connectivity, Serverless VPC Access behavior, log delivery, and cross-country isolation remain deployment-validation requirements.
+**Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Folder creation, project placement, effective organization policies, IAM propagation, budgets, remote state, routes, DNS, firewall enforcement, private-service connectivity, managed-service agents, CMEK effectiveness, Artifact Registry behavior, secret access, Cloud Run ingress and egress, Cloud SQL backup and restore, storage recovery, log delivery, cross-country isolation, and drift remain deployment-validation requirements.
 
 **Primary outcome:** Reproducible infrastructure that implements the reviewed architecture without relying on manual console configuration.
 

@@ -56,3 +56,9 @@ jobs:
 
       - name: Validate network configuration
         run: terraform -chdir=infra/terraform/environments/network validate -no-color
+
+      - name: Initialize workload configuration
+        run: terraform -chdir=infra/terraform/environments/workloads init -backend=false -input=false
+
+      - name: Validate workload configuration
+        run: terraform -chdir=infra/terraform/environments/workloads validate -no-color
