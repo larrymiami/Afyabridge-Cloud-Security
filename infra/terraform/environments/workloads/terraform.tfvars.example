@@ -1,0 +1,91 @@
+artifact_repositories = {
+  ke-prod-images = {
+    country       = "ke"
+    environment   = "prod"
+    project_id    = "afyabridge-ke-prod-app"
+    location      = "africa-south1"
+    repository_id = "afyabridge-ke-prod-images"
+    description   = "Kenya production workload container images."
+    reader_members = [
+      "serviceAccount:afyabridge-runtime@afyabridge-ke-prod-app.iam.gserviceaccount.com"
+    ]
+    writer_members = [
+      "serviceAccount:afyabridge-build@afyabridge-ke-prod-app.iam.gserviceaccount.com"
+    ]
+    cleanup_policies = {
+      retain-recent = {
+        action = "KEEP"
+        most_recent_versions = {
+          keep_count = 20
+        }
+      }
+      remove-untagged = {
+        action = "DELETE"
+        condition = {
+          tag_state  = "UNTAGGED"
+          older_than = "2592000s"
+        }
+      }
+    }
+  }
+
+  gh-prod-images = {
+    country       = "gh"
+    environment   = "prod"
+    project_id    = "afyabridge-gh-prod-app"
+    location      = "africa-south1"
+    repository_id = "afyabridge-gh-prod-images"
+    description   = "Ghana production workload container images."
+    reader_members = [
+      "serviceAccount:afyabridge-runtime@afyabridge-gh-prod-app.iam.gserviceaccount.com"
+    ]
+    writer_members = [
+      "serviceAccount:afyabridge-build@afyabridge-gh-prod-app.iam.gserviceaccount.com"
+    ]
+    cleanup_policies = {
+      retain-recent = {
+        action = "KEEP"
+        most_recent_versions = {
+          keep_count = 20
+        }
+      }
+      remove-untagged = {
+        action = "DELETE"
+        condition = {
+          tag_state  = "UNTAGGED"
+          older_than = "2592000s"
+        }
+      }
+    }
+  }
+
+  za-prod-images = {
+    country       = "za"
+    environment   = "prod"
+    project_id    = "afyabridge-za-prod-app"
+    location      = "africa-south1"
+    repository_id = "afyabridge-za-prod-images"
+    description   = "South Africa production workload container images."
+    reader_members = [
+      "serviceAccount:afyabridge-runtime@afyabridge-za-prod-app.iam.gserviceaccount.com"
+    ]
+    writer_members = [
+      "serviceAccount:afyabridge-build@afyabridge-za-prod-app.iam.gserviceaccount.com"
+    ]
+    cleanup_policies = {
+      retain-recent = {
+        action = "KEEP"
+        most_recent_versions = {
+          keep_count = 20
+        }
+      }
+      remove-untagged = {
+        action = "DELETE"
+        condition = {
+          tag_state  = "UNTAGGED"
+          older_than = "2592000s"
+        }
+      }
+    }
+  }
+}
