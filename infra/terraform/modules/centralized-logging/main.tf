@@ -17,15 +17,15 @@ resource "google_logging_project_bucket_config" "this" {
 resource "google_logging_organization_sink" "this" {
   for_each = var.sinks
 
-  name                = each.value.name
-  description         = each.value.description
-  org_id              = var.organization_id
-  destination         = "logging.googleapis.com/${google_logging_project_bucket_config.this[each.value.bucket_key].name}"
-  filter              = each.value.filter
-  disabled            = each.value.disabled
-  include_children    = each.value.include_children
-  intercept_children  = false
-  deletion_policy     = "PREVENT"
+  name               = each.value.name
+  description        = each.value.description
+  org_id             = var.organization_id
+  destination        = "logging.googleapis.com/${google_logging_project_bucket_config.this[each.value.bucket_key].name}"
+  filter             = each.value.filter
+  disabled           = each.value.disabled
+  include_children   = each.value.include_children
+  intercept_children = false
+  deletion_policy    = "PREVENT"
 
   dynamic "exclusions" {
     for_each = each.value.exclusions
