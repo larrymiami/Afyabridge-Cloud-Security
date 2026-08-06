@@ -1,16 +1,22 @@
 variable "project_id" {
-  description = "Google Cloud project that owns the workload identity pool and deployment service accounts."
+  description = "Google Cloud project that owns the workload identity pools and deployment service accounts."
   type        = string
 }
 
-variable "pool_id" {
-  description = "Workload identity pool ID."
+variable "plan_pool_id" {
+  description = "Workload identity pool ID dedicated to Terraform plan jobs."
   type        = string
-  default     = "github-actions"
+  default     = "github-terraform-plan"
+}
+
+variable "apply_pool_id" {
+  description = "Workload identity pool ID dedicated to protected Terraform apply jobs."
+  type        = string
+  default     = "github-terraform-apply"
 }
 
 variable "plan_provider_id" {
-  description = "OIDC provider ID used by pull-request plan jobs."
+  description = "OIDC provider ID used by pull-request and manual plan jobs."
   type        = string
   default     = "github-plan"
 }
@@ -110,7 +116,7 @@ variable "apply_project_roles" {
 }
 
 variable "disabled" {
-  description = "Disable both GitHub OIDC providers without deleting the pool."
+  description = "Disable both GitHub OIDC providers without deleting their dedicated pools."
   type        = bool
   default     = false
 }
