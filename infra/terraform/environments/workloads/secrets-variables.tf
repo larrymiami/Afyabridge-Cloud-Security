@@ -12,8 +12,8 @@ variable "secrets" {
       rotation_period    = string
       topic_names        = set(string)
     }))
-    accessor_members   = optional(set(string), [])
-    viewer_members     = optional(set(string), [])
+    accessor_members    = optional(set(string), [])
+    viewer_members      = optional(set(string), [])
     deletion_protection = optional(bool, true)
   }))
   default = {}
