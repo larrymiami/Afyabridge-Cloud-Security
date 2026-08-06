@@ -87,8 +87,11 @@ variable "plan_project_roles" {
   default     = []
 
   validation {
-    condition     = alltrue([for role in var.plan_project_roles : startswith(role, "roles/")])
-    error_message = "Plan project IAM roles must use roles/... identifiers."
+    condition = alltrue([
+      for role in var.plan_project_roles :
+      startswith(role, "roles/") && !contains(["roles/owner", "roles/editor"], role)
+    ])
+    error_message = "Plan roles must use roles/... identifiers and must not include Owner or Editor."
   }
 }
 
@@ -98,8 +101,11 @@ variable "apply_project_roles" {
   default     = []
 
   validation {
-    condition     = alltrue([for role in var.apply_project_roles : startswith(role, "roles/")])
-    error_message = "Apply project IAM roles must use roles/... identifiers."
+    condition = alltrue([
+      for role in var.apply_project_roles :
+      startswith(role, "roles/") && !contains(["roles/owner", "roles/editor"], role)
+    ])
+    error_message = "Apply roles must use roles/... identifiers and must not include Owner or Editor."
   }
 }
 
