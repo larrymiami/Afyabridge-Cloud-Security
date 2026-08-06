@@ -1,0 +1,103 @@
+name: Terraform federation plan
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "infra/terraform/environments/federation/**"
+      - "infra/terraform/modules/github-actions-wif/**"
+      - ".github/workflows/terraform-federation-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-federation-plan-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_VAR_project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate federation configuration variables
+        shell: bash
+        env:
+          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WIF_PLAN_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT }}
+          PROJECT_ID: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          required=(WORKLOAD_IDENTITY_PROVIDER SERVICE_ACCOUNT PROJECT_ID)
+          for variable_name in "${required[@]}"; do
+            if [[ -z "${!variable_name:-}" ]]; then
+              echo "::error::Repository variable ${variable_name} is not configured."
+              exit 1
+            fi
+          done
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PLAN_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive infra/terraform
+
+      - name: Initialize federation configuration
+        run: terraform -chdir=infra/terraform/environments/federation init -backend=false -input=false -lockfile=readonly
+
+      - name: Validate federation configuration
+        run: terraform -chdir=infra/terraform/environments/federation validate -no-color
+
+      - name: Create federation plan
+        run: >-
+          terraform -chdir=infra/terraform/environments/federation plan
+          -input=false
+          -lock=false
+          -refresh=true
+          -no-color
+          -out=federation.tfplan
+
+      - name: Render redacted plan summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra/terraform/environments/federation show \
+            -no-color federation.tfplan \
+            | sed -E 's/(token|secret|password|credential)[^=]*=.*/\1 = [REDACTED]/Ig' \
+            > /tmp/federation-plan.txt
+          tail -n 80 /tmp/federation-plan.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove generated credentials and plan
+        if: always()
+        shell: bash
+        run: |
+          rm -f infra/terraform/environments/federation/federation.tfplan
+          rm -f "${{ steps.auth.outputs.credentials_file_path }}"
