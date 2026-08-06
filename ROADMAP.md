@@ -158,13 +158,13 @@
 - [x] Implement private-IP Cloud SQL for PostgreSQL with backups, point-in-time recovery, maintenance controls, CMEK hooks, and deletion protection
 - [x] Implement country Cloud Storage buckets with uniform access, public-access prevention, versioning, soft delete, lifecycle, retention, CMEK hooks, and destruction protection
 - [x] Add workload architecture documentation, deployment runbook, and v0.7D static-validation evidence
-- [ ] Generate, review, and commit the workload provider lockfile
+- [x] Generate, review, commit, and validate the workload provider lockfile
 - [ ] Apply and validate the bootstrap, foundation, network, and workload stacks in a reviewed Google Cloud environment
 - [ ] Implement workload identity federation, centralized logging, monitoring, and detection controls
 - [ ] Configure edge security, public DNS, and certificates
 - [ ] Add live deployment, rollback, recovery, and runtime validation evidence
 
-**Validated:** Terraform infrastructure workflow run #125 on commit `4e46a84e75f49d94007e7046bc12e7d185d02fe0` completed recursive formatting checks and backend-free initialization and static validation for the bootstrap, foundation, network, and workload roots.
+**Validated:** Terraform infrastructure workflow run #130 on commit `d7174726fb9a5ca48daf37e3737b0e6d9f62a5c7` completed recursive formatting checks and backend-free initialization and static validation for the bootstrap, foundation, network, and workload roots using the committed provider lockfiles.
 
 **Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Folder creation, project placement, effective organization policies, IAM propagation, budgets, remote state, routes, DNS, firewall enforcement, private-service connectivity, managed-service agents, CMEK effectiveness, Artifact Registry behavior, secret access, Cloud Run ingress and egress, Cloud SQL backup and restore, storage recovery, log delivery, cross-country isolation, and drift remain deployment-validation requirements.
 
