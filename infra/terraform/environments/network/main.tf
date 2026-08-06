@@ -8,6 +8,13 @@ locals {
   private_service_cidrs = {
     for country, config in var.private_service_access : country => "${config.address}/${config.prefix_length}"
   }
+
+  country_internal_source_cidrs = {
+    for country, cidrs in local.country_subnet_cidrs : country => setunion(
+      cidrs,
+      toset([var.serverless_connectors[country].ip_cidr_range])
+    )
+  }
 }
 
 module "country_networks" {
@@ -42,10 +49,10 @@ module "country_firewalls" {
   rules = {
     allow-country-internal = {
       name          = "${each.value.network_name}-allow-country-internal"
-      description   = "Allow east-west traffic only within the country network allocation."
+      description   = "Allow east-west traffic only within the country network allocation and its serverless connector range."
       direction     = "INGRESS"
       priority      = 1000
-      source_ranges = local.country_subnet_cidrs[each.key]
+      source_ranges = local.country_internal_source_cidrs[each.key]
       allow = [{
         protocol = "all"
       }]
