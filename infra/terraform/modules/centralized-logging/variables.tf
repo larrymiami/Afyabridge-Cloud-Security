@@ -43,11 +43,11 @@ variable "buckets" {
 variable "sinks" {
   description = "Non-intercepting organization sinks keyed by stable logical name."
   type = map(object({
-    name            = string
-    description     = string
-    bucket_key      = string
-    filter          = string
-    disabled        = optional(bool, false)
+    name             = string
+    description      = string
+    bucket_key       = string
+    filter           = string
+    disabled         = optional(bool, false)
     include_children = optional(bool, true)
     exclusions = optional(map(object({
       description = string
