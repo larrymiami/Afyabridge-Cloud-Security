@@ -50,3 +50,9 @@ jobs:
 
       - name: Validate foundation configuration
         run: terraform -chdir=infra/terraform/environments/foundation validate -no-color
+
+      - name: Initialize network configuration
+        run: terraform -chdir=infra/terraform/environments/network init -backend=false -input=false
+
+      - name: Validate network configuration
+        run: terraform -chdir=infra/terraform/environments/network validate -no-color

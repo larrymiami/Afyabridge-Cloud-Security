@@ -1,0 +1,130 @@
+quota_project_id = "afyabridge-shared-network-admin"
+default_region   = "africa-south1"
+
+serverless_connectors = {
+  ke = {
+    name          = "afyabridge-ke-svpc"
+    region        = "africa-south1"
+    ip_cidr_range = "10.10.224.0/28"
+  }
+  gh = {
+    name          = "afyabridge-gh-svpc"
+    region        = "africa-south1"
+    ip_cidr_range = "10.20.224.0/28"
+  }
+  za = {
+    name          = "afyabridge-za-svpc"
+    region        = "africa-south1"
+    ip_cidr_range = "10.30.224.0/28"
+  }
+}
+
+private_service_access = {
+  ke = {
+    address_name  = "afyabridge-ke-private-services"
+    address       = "10.10.240.0"
+    prefix_length = 20
+  }
+  gh = {
+    address_name  = "afyabridge-gh-private-services"
+    address       = "10.20.240.0"
+    prefix_length = 20
+  }
+  za = {
+    address_name  = "afyabridge-za-private-services"
+    address       = "10.30.240.0"
+    prefix_length = 20
+  }
+}
+
+country_networks = {
+  ke = {
+    host_project_id = "afyabridge-ke-net-host"
+    network_name    = "afyabridge-ke-shared-vpc"
+    router_name     = "afyabridge-ke-router"
+    router_region   = "africa-south1"
+    nat_name        = "afyabridge-ke-nat"
+    service_project_ids = [
+      "afyabridge-ke-dev-app",
+      "afyabridge-ke-stg-app",
+      "afyabridge-ke-prod-app"
+    ]
+    subnets = {
+      dev-app = {
+        name          = "ke-dev-app-africa-south1"
+        region        = "africa-south1"
+        ip_cidr_range = "10.10.0.0/20"
+      }
+      stg-app = {
+        name          = "ke-stg-app-africa-south1"
+        region        = "africa-south1"
+        ip_cidr_range = "10.10.16.0/20"
+      }
+      prod-app = {
+        name          = "ke-prod-app-africa-south1"
+        region        = "africa-south1"
+        ip_cidr_range = "10.10.32.0/20"
+      }
+    }
+  }
+
+  gh = {
+    host_project_id = "afyabridge-gh-net-host"
+    network_name    = "afyabridge-gh-shared-vpc"
+    router_name     = "afyabridge-gh-router"
+    router_region   = "africa-south1"
+    nat_name        = "afyabridge-gh-nat"
+    service_project_ids = [
+      "afyabridge-gh-dev-app",
+      "afyabridge-gh-stg-app",
+      "afyabridge-gh-prod-app"
+    ]
+    subnets = {
+      dev-app = {
+        name          = "gh-dev-app-africa-south1"
+        region        = "africa-south1"
+        ip_cidr_range = "10.20.0.0/20"
+      }
+      stg-app = {
+        name          = "gh-stg-app-africa-south1"
+        region        = "africa-south1"
+        ip_cidr_range = "10.20.16.0/20"
+      }
+      prod-app = {
+        name          = "gh-prod-app-africa-south1"
+        region        = "africa-south1"
+        ip_cidr_range = "10.20.32.0/20"
+      }
+    }
+  }
+
+  za = {
+    host_project_id = "afyabridge-za-net-host"
+    network_name    = "afyabridge-za-shared-vpc"
+    router_name     = "afyabridge-za-router"
+    router_region   = "africa-south1"
+    nat_name        = "afyabridge-za-nat"
+    service_project_ids = [
+      "afyabridge-za-dev-app",
+      "afyabridge-za-stg-app",
+      "afyabridge-za-prod-app"
+    ]
+    subnets = {
+      dev-app = {
+        name          = "za-dev-app-africa-south1"
+        region        = "africa-south1"
+        ip_cidr_range = "10.30.0.0/20"
+      }
+      stg-app = {
+        name          = "za-stg-app-africa-south1"
+        region        = "africa-south1"
+        ip_cidr_range = "10.30.16.0/20"
+      }
+      prod-app = {
+        name          = "za-prod-app-africa-south1"
+        region        = "africa-south1"
+        ip_cidr_range = "10.30.32.0/20"
+      }
+    }
+  }
+}
