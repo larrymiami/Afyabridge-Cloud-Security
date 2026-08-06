@@ -2,11 +2,22 @@ data "google_project" "host" {
   project_id = var.project_id
 }
 
-resource "google_iam_workload_identity_pool" "github" {
+resource "google_iam_workload_identity_pool" "plan" {
   project                   = var.project_id
-  workload_identity_pool_id = var.pool_id
-  display_name              = "GitHub Actions"
-  description               = "Short-lived GitHub Actions identities for Terraform plan and protected apply workflows."
+  workload_identity_pool_id = var.plan_pool_id
+  display_name              = "GitHub Terraform plan"
+  description               = "Short-lived GitHub Actions identities dedicated to Terraform planning."
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "google_iam_workload_identity_pool" "apply" {
+  project                   = var.project_id
+  workload_identity_pool_id = var.apply_pool_id
+  display_name              = "GitHub Terraform apply"
+  description               = "Short-lived GitHub Actions identities dedicated to protected Terraform applies."
 
   lifecycle {
     prevent_destroy = true
@@ -15,7 +26,7 @@ resource "google_iam_workload_identity_pool" "github" {
 
 resource "google_iam_workload_identity_pool_provider" "plan" {
   project                            = var.project_id
-  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.plan.workload_identity_pool_id
   workload_identity_pool_provider_id = var.plan_provider_id
   display_name                       = "GitHub Terraform plan"
   description                        = "Accepts pull-request plans and trusted manual main-branch plans from the immutable AfyaBridge repository identity."
@@ -55,7 +66,7 @@ resource "google_iam_workload_identity_pool_provider" "plan" {
 
 resource "google_iam_workload_identity_pool_provider" "apply" {
   project                            = var.project_id
-  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_id          = google_iam_workload_identity_pool.apply.workload_identity_pool_id
   workload_identity_pool_provider_id = var.apply_provider_id
   display_name                       = "GitHub Terraform apply"
   description                        = "Accepts protected-environment tokens from the immutable AfyaBridge repository identity and main branch."
@@ -118,13 +129,13 @@ resource "google_service_account" "apply" {
 resource "google_service_account_iam_member" "plan_federation" {
   service_account_id = google_service_account.plan.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.deployment_role/plan"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.plan.name}/attribute.deployment_role/plan"
 }
 
 resource "google_service_account_iam_member" "apply_federation" {
   service_account_id = google_service_account.apply.name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.deployment_role/apply"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.apply.name}/attribute.deployment_role/apply"
 }
 
 resource "google_project_iam_member" "plan_roles" {
