@@ -1,10 +1,15 @@
-output "workload_identity_pool_name" {
-  description = "Full workload identity pool resource name."
-  value       = google_iam_workload_identity_pool.github.name
+output "plan_pool_name" {
+  description = "Full workload identity pool resource name dedicated to Terraform plan jobs."
+  value       = google_iam_workload_identity_pool.plan.name
+}
+
+output "apply_pool_name" {
+  description = "Full workload identity pool resource name dedicated to protected Terraform apply jobs."
+  value       = google_iam_workload_identity_pool.apply.name
 }
 
 output "plan_provider_name" {
-  description = "Full GitHub OIDC provider name for pull-request plans."
+  description = "Full GitHub OIDC provider name for pull-request and manual plans."
   value       = google_iam_workload_identity_pool_provider.plan.name
 }
 
