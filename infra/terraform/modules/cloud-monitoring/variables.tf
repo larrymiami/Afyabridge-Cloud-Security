@@ -27,24 +27,24 @@ variable "notification_channels" {
 variable "alert_policies" {
   description = "Threshold alert policies keyed by stable logical name."
   type = map(object({
-    display_name          = string
-    condition_display_name = string
-    filter                = string
-    comparison            = string
-    threshold_value       = number
-    duration               = string
-    alignment_period       = optional(string, "300s")
-    per_series_aligner     = optional(string, "ALIGN_MEAN")
-    cross_series_reducer   = optional(string, "REDUCE_NONE")
-    group_by_fields        = optional(list(string), [])
-    notification_channels  = set(string)
-    severity               = string
-    owner                  = string
-    runbook_url            = string
-    documentation          = string
-    auto_close             = optional(string, "604800s")
+    display_name            = string
+    condition_display_name  = string
+    filter                  = string
+    comparison              = string
+    threshold_value         = number
+    duration                = string
+    alignment_period        = optional(string, "300s")
+    per_series_aligner      = optional(string, "ALIGN_MEAN")
+    cross_series_reducer    = optional(string, "REDUCE_NONE")
+    group_by_fields         = optional(list(string), [])
+    notification_channels   = set(string)
+    severity                = string
+    owner                   = string
+    runbook_url             = string
+    documentation           = string
+    auto_close              = optional(string, "604800s")
     notification_rate_limit = optional(string, "300s")
-    enabled                = optional(bool, true)
+    enabled                 = optional(bool, true)
   }))
 
   validation {
