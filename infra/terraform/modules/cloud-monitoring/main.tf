@@ -25,7 +25,7 @@ resource "google_monitoring_alert_policy" "this" {
   }
 
   documentation {
-    content = <<-EOT
+    content   = <<-EOT
       ${each.value.documentation}
 
       Owner: ${each.value.owner}
