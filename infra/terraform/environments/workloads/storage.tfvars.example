@@ -1,0 +1,63 @@
+storage_buckets = {
+  ke-prod-exports = {
+    country     = "ke"
+    environment = "prod"
+    project_id  = "afyabridge-ke-prod-data"
+    name        = "afyabridge-ke-prod-exports-example"
+    location    = "africa-south1"
+    iam_bindings = {
+      "roles/storage.objectAdmin" = [
+        "serviceAccount:afyabridge-runtime@afyabridge-ke-prod-app.iam.gserviceaccount.com"
+      ]
+      "roles/storage.objectViewer" = [
+        "group:ke-security-reviewers@example.org"
+      ]
+    }
+    retention_period_seconds = 2592000
+    lifecycle_rules = {
+      delete-noncurrent = {
+        action = {
+          type = "Delete"
+        }
+        condition = {
+          days_since_noncurrent_time = 90
+          with_state                 = "ARCHIVED"
+        }
+      }
+    }
+  }
+
+  gh-prod-exports = {
+    country     = "gh"
+    environment = "prod"
+    project_id  = "afyabridge-gh-prod-data"
+    name        = "afyabridge-gh-prod-exports-example"
+    location    = "africa-south1"
+    iam_bindings = {
+      "roles/storage.objectAdmin" = [
+        "serviceAccount:afyabridge-runtime@afyabridge-gh-prod-app.iam.gserviceaccount.com"
+      ]
+      "roles/storage.objectViewer" = [
+        "group:gh-security-reviewers@example.org"
+      ]
+    }
+    retention_period_seconds = 2592000
+  }
+
+  za-prod-exports = {
+    country     = "za"
+    environment = "prod"
+    project_id  = "afyabridge-za-prod-data"
+    name        = "afyabridge-za-prod-exports-example"
+    location    = "africa-south1"
+    iam_bindings = {
+      "roles/storage.objectAdmin" = [
+        "serviceAccount:afyabridge-runtime@afyabridge-za-prod-app.iam.gserviceaccount.com"
+      ]
+      "roles/storage.objectViewer" = [
+        "group:za-security-reviewers@example.org"
+      ]
+    }
+    retention_period_seconds = 2592000
+  }
+}
