@@ -84,7 +84,7 @@ locals {
 module "centralized_logging" {
   source = "../../modules/centralized-logging"
 
-  organization_id   = var.organization_id
+  organization_id    = var.organization_id
   logging_project_id = var.logging_project_id
   buckets            = local.buckets
   sinks              = local.sinks
