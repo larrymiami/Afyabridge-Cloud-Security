@@ -145,16 +145,21 @@
 - [x] Implement project budgets and notification-threshold contracts
 - [x] Add bootstrap and foundation deployment runbooks
 - [x] Record successful static Terraform validation evidence for v0.7A and v0.7B
-- [ ] Apply and validate the bootstrap and foundation stacks in a reviewed Google Cloud environment
-- [ ] Implement country and non-production Shared VPC modules
-- [ ] Implement network, federation, logging, and monitoring controls
+- [x] Implement country-isolated custom-mode Shared VPC modules and service-project attachments
+- [x] Implement regional subnets, Private Google Access, VPC Flow Logs, Cloud Router, Cloud NAT, and restricted Google API routing
+- [x] Implement deny-by-default ingress and egress firewall controls with health-check and IAP allowlists
+- [x] Implement country-owned private service access ranges and private Google API DNS
+- [x] Implement country-specific Serverless VPC Access connectors with unique `/28` ranges
+- [x] Add network architecture documentation, deployment runbook, and v0.7C static-validation evidence
+- [ ] Apply and validate the bootstrap, foundation, and network stacks in a reviewed Google Cloud environment
+- [ ] Implement workload identity federation, centralized logging, monitoring, and detection controls
 - [ ] Deploy Cloud Run workloads, managed databases, and object storage
-- [ ] Configure Artifact Registry, Secret Manager, Cloud KMS, edge security, DNS, and certificates
+- [ ] Configure Artifact Registry, Secret Manager, Cloud KMS, edge security, public DNS, and certificates
 - [ ] Add deployment, rollback, recovery, and runtime validation evidence
 
-**Validated:** Terraform foundation workflow run #25 on commit `0965ade4395c94d46cd35c55f4b86d712faa3f1c` completed formatting, backend-free initialization, and static validation for the bootstrap and composed foundation roots.
+**Validated:** Terraform infrastructure workflow run #70 on commit `13f8788e77077016f08a38f6988ed0d8792ee76d` completed formatting, backend-free initialization, and static validation for the bootstrap, foundation, and network roots.
 
-**Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Folder creation, project placement, effective organization policies, IAM propagation, budget alerts, remote-state behavior, and cross-country isolation remain deployment-validation requirements.
+**Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Folder creation, project placement, effective organization policies, IAM propagation, budget alerts, remote-state behavior, routes, DNS, firewall enforcement, private-service connectivity, Serverless VPC Access behavior, log delivery, and cross-country isolation remain deployment-validation requirements.
 
 **Primary outcome:** Reproducible infrastructure that implements the reviewed architecture without relying on manual console configuration.
 
