@@ -12,3 +12,15 @@ output "country_networks" {
     }
   }
 }
+
+output "serverless_connectors" {
+  description = "Country-isolated Serverless VPC Access connector inventory."
+  value = {
+    for country, connector in module.serverless_connectors : country => {
+      id            = connector.id
+      name          = connector.name
+      region        = connector.region
+      ip_cidr_range = connector.ip_cidr_range
+    }
+  }
+}
