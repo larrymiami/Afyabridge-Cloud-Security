@@ -1,0 +1,220 @@
+name: Terraform federation apply
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_commit:
+        description: "Full main-branch commit SHA to deploy"
+        required: true
+        type: string
+      confirm_apply:
+        description: "Type APPLY to create and execute the saved Terraform plan"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-federation-production
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event.inputs.confirm_apply == 'APPLY' &&
+      github.event.inputs.expected_commit == github.sha &&
+      vars.GCP_FEDERATION_PROJECT_ID != '' &&
+      vars.GCP_WIF_PLAN_PROVIDER != '' &&
+      vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_VAR_project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
+
+    steps:
+      - name: Check out exact deployment commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify deployment provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          test "${{ github.event.inputs.expected_commit }}" = "${GITHUB_SHA}"
+
+      - name: Authenticate plan identity
+        id: plan-auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PLAN_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive infra/terraform
+
+      - name: Initialize federation configuration
+        run: terraform -chdir=infra/terraform/environments/federation init -backend=false -input=false
+
+      - name: Validate federation configuration
+        run: terraform -chdir=infra/terraform/environments/federation validate -no-color
+
+      - name: Create saved federation plan
+        run: >-
+          terraform -chdir=infra/terraform/environments/federation plan
+          -input=false
+          -lock=false
+          -refresh=true
+          -no-color
+          -out=federation.tfplan
+
+      - name: Record plan checksum and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="infra/terraform/environments/federation"
+          sha256sum "$root/federation.tfplan" > "$root/federation.tfplan.sha256"
+          terraform -chdir="$root" show -json federation.tfplan \
+            | jq '{
+                create: ([.resource_changes[]? | select(.change.actions == ["create"])] | length),
+                update: ([.resource_changes[]? | select(.change.actions == ["update"])] | length),
+                delete: ([.resource_changes[]? | select(.change.actions == ["delete"])] | length),
+                replace: ([.resource_changes[]? | select(.change.actions == ["delete", "create"] or .change.actions == ["create", "delete"])] | length)
+              }' > "$root/federation-plan-counts.json"
+          jq -n \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg ref "${GITHUB_REF}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            '{repository: $repository, commit: $commit, ref: $ref, run_id: $run_id}' \
+            > "$root/federation-plan-metadata.json"
+          {
+            echo "## Federation apply candidate"
+            echo
+            echo "Commit: \`${GITHUB_SHA}\`"
+            echo
+            echo '```json'
+            cat "$root/federation-plan-counts.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload immutable saved plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: federation-plan-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            infra/terraform/environments/federation/federation.tfplan
+            infra/terraform/environments/federation/federation.tfplan.sha256
+            infra/terraform/environments/federation/federation-plan-counts.json
+            infra/terraform/environments/federation/federation-plan-metadata.json
+            infra/terraform/environments/federation/.terraform.lock.hcl
+          if-no-files-found: error
+          retention-days: 1
+          overwrite: false
+
+      - name: Remove plan credentials and local plan
+        if: always()
+        shell: bash
+        run: |
+          rm -f infra/terraform/environments/federation/federation.tfplan
+          rm -f "${{ steps.plan-auth.outputs.credentials_file_path }}"
+
+  apply:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_VAR_project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
+
+    steps:
+      - name: Check out exact deployment commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Download saved plan
+        uses: actions/download-artifact@v4
+        with:
+          name: federation-plan-${{ github.sha }}-${{ github.run_id }}
+          path: infra/terraform/environments/federation
+
+      - name: Verify plan checksum and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="infra/terraform/environments/federation"
+          cd "$root"
+          sha256sum --check federation.tfplan.sha256
+          test "$(jq -r '.repository' federation-plan-metadata.json)" = "${GITHUB_REPOSITORY}"
+          test "$(jq -r '.commit' federation-plan-metadata.json)" = "${GITHUB_SHA}"
+          test "$(jq -r '.ref' federation-plan-metadata.json)" = "refs/heads/main"
+          test "$(jq -r '.run_id' federation-plan-metadata.json)" = "${GITHUB_RUN_ID}"
+          test "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)" = "${GITHUB_SHA}"
+
+      - name: Authenticate apply identity
+        id: apply-auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_APPLY_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
+
+      - name: Initialize with saved provider selections
+        run: terraform -chdir=infra/terraform/environments/federation init -backend=false -input=false -lockfile=readonly
+
+      - name: Apply exact saved plan
+        run: terraform -chdir=infra/terraform/environments/federation apply -input=false -no-color federation.tfplan
+
+      - name: Record apply evidence
+        shell: bash
+        run: |
+          {
+            echo "## Federation apply completed"
+            echo
+            echo "Commit: \`${GITHUB_SHA}\`"
+            echo
+            echo "Run ID: \`${GITHUB_RUN_ID}\`"
+            echo
+            echo "Applied plan checksum:"
+            echo '```text'
+            cat infra/terraform/environments/federation/federation.tfplan.sha256
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove apply credentials and saved plan
+        if: always()
+        shell: bash
+        run: |
+          rm -f infra/terraform/environments/federation/federation.tfplan
+          rm -f "${{ steps.apply-auth.outputs.credentials_file_path }}"

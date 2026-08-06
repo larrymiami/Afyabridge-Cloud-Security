@@ -159,16 +159,21 @@
 - [x] Implement country Cloud Storage buckets with uniform access, public-access prevention, versioning, soft delete, lifecycle, retention, CMEK hooks, and destruction protection
 - [x] Add workload architecture documentation, deployment runbook, and v0.7D static-validation evidence
 - [x] Generate, review, commit, and validate the workload provider lockfile
+- [x] Implement GitHub OIDC Workload Identity Federation with immutable repository claims and separate plan/apply providers
+- [x] Implement separate Terraform plan and apply service accounts with fixed impersonation paths and primitive-role rejection
+- [x] Add pull-request plan and approval-gated saved-plan apply workflow contracts
+- [x] Add federation bootstrap, trust-boundary, role-matrix, and v0.7E static-validation documentation
+- [ ] Bootstrap and live-validate Workload Identity Federation, repository variables, protected environment controls, and deployment IAM
 - [ ] Apply and validate the bootstrap, foundation, network, and workload stacks in a reviewed Google Cloud environment
-- [ ] Implement workload identity federation, centralized logging, monitoring, and detection controls
+- [ ] Implement centralized logging, monitoring, and detection controls
 - [ ] Configure edge security, public DNS, and certificates
 - [ ] Add live deployment, rollback, recovery, and runtime validation evidence
 
-**Validated:** Terraform infrastructure workflow run #130 on commit `d7174726fb9a5ca48daf37e3737b0e6d9f62a5c7` completed recursive formatting checks and backend-free initialization and static validation for the bootstrap, foundation, network, and workload roots using the committed provider lockfiles.
+**Validated:** Terraform infrastructure workflow run #148 on commit `738fdb3280a1c7d7882b1e74eb4cc1f637f8d57f` completed recursive formatting checks and backend-free initialization and static validation for the bootstrap, foundation, network, workload, and federation roots. The OIDC workflows remain unvalidated against live GitHub and Google Cloud federation.
 
-**Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Folder creation, project placement, effective organization policies, IAM propagation, budgets, remote state, routes, DNS, firewall enforcement, private-service connectivity, managed-service agents, CMEK effectiveness, Artifact Registry behavior, secret access, Cloud Run ingress and egress, Cloud SQL backup and restore, storage recovery, log delivery, cross-country isolation, and drift remain deployment-validation requirements.
+**Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Workload Identity Federation token exchange, service-account impersonation, protected-environment enforcement, exact deployment IAM, folder creation, project placement, effective organization policies, budgets, remote state, routes, DNS, firewall enforcement, private-service connectivity, managed-service agents, CMEK effectiveness, Artifact Registry behavior, secret access, Cloud Run ingress and egress, Cloud SQL backup and restore, storage recovery, log delivery, cross-country isolation, and drift remain deployment-validation requirements.
 
-**Primary outcome:** Reproducible infrastructure that implements the reviewed architecture without relying on manual console configuration.
+**Primary outcome:** Reproducible infrastructure and a keyless deployment-control path that implement the reviewed architecture without relying on manual console configuration for steady-state operation.
 
 ---
 

@@ -1,0 +1,8 @@
+project_id        = "afyabridge-shared-security"
+apply_environment = "production"
+
+# Keep role sets empty until each permission has been reviewed against the
+# exact Terraform plan and apply operations. Broad owner/editor roles are not
+# acceptable deployment defaults.
+plan_project_roles  = []
+apply_project_roles = []

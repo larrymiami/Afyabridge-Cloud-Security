@@ -1,0 +1,110 @@
+name: Terraform federation plan
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "infra/terraform/environments/federation/**"
+      - "infra/terraform/modules/github-actions-wif/**"
+      - ".github/workflows/terraform-federation-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-federation-plan-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    if: >-
+      (github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository) &&
+      vars.GCP_FEDERATION_PROJECT_ID != '' &&
+      vars.GCP_WIF_PLAN_PROVIDER != '' &&
+      vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_VAR_project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_PLAN_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.15.5
+          terraform_wrapper: false
+
+      - name: Check formatting
+        run: terraform fmt -check -recursive infra/terraform
+
+      - name: Initialize federation configuration
+        run: terraform -chdir=infra/terraform/environments/federation init -backend=false -input=false
+
+      - name: Validate federation configuration
+        run: terraform -chdir=infra/terraform/environments/federation validate -no-color
+
+      - name: Create federation plan
+        run: >-
+          terraform -chdir=infra/terraform/environments/federation plan
+          -input=false
+          -lock=false
+          -refresh=true
+          -no-color
+          -out=federation.tfplan
+
+      - name: Publish non-sensitive change summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=infra/terraform/environments/federation show -json federation.tfplan \
+            | jq -r '
+              [
+                .resource_changes[]?.change.actions
+                | if . == ["create"] then "create"
+                  elif . == ["update"] then "update"
+                  elif . == ["delete"] then "delete"
+                  elif . == ["delete", "create"] or . == ["create", "delete"] then "replace"
+                  else "other"
+                  end
+              ]
+              | group_by(.)
+              | map({key: .[0], value: length})
+              | from_entries
+              | "## Terraform federation plan\n\n" +
+                "| Action | Count |\n|---|---:|\n" +
+                "| Create | \(.create // 0) |\n" +
+                "| Update | \(.update // 0) |\n" +
+                "| Replace | \(.replace // 0) |\n" +
+                "| Delete | \(.delete // 0) |\n" +
+                "| Other | \(.other // 0) |"
+            ' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove generated credentials and plan
+        if: always()
+        shell: bash
+        run: |
+          rm -f infra/terraform/environments/federation/federation.tfplan
+          credentials_file="${{ steps.auth.outputs.credentials_file_path }}"
+          if [[ -n "$credentials_file" ]]; then
+            rm -f "$credentials_file"
+          fi

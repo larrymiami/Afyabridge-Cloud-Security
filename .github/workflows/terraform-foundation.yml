@@ -62,3 +62,9 @@ jobs:
 
       - name: Validate workload configuration
         run: terraform -chdir=infra/terraform/environments/workloads validate -no-color
+
+      - name: Initialize federation configuration
+        run: terraform -chdir=infra/terraform/environments/federation init -backend=false -input=false
+
+      - name: Validate federation configuration
+        run: terraform -chdir=infra/terraform/environments/federation validate -no-color
