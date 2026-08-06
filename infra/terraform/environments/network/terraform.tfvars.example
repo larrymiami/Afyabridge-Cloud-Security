@@ -1,6 +1,24 @@
 quota_project_id = "afyabridge-shared-network-admin"
 default_region   = "africa-south1"
 
+serverless_connectors = {
+  ke = {
+    name          = "afyabridge-ke-svpc"
+    region        = "africa-south1"
+    ip_cidr_range = "10.10.224.0/28"
+  }
+  gh = {
+    name          = "afyabridge-gh-svpc"
+    region        = "africa-south1"
+    ip_cidr_range = "10.20.224.0/28"
+  }
+  za = {
+    name          = "afyabridge-za-svpc"
+    region        = "africa-south1"
+    ip_cidr_range = "10.30.224.0/28"
+  }
+}
+
 private_service_access = {
   ke = {
     address_name  = "afyabridge-ke-private-services"
