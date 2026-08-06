@@ -37,7 +37,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Check formatting
-        run: terraform fmt -check -recursive infra/terraform
+        run: terraform fmt -check -diff -recursive infra/terraform
 
       - name: Initialize bootstrap configuration
         run: terraform -chdir=infra/terraform/bootstrap init -backend=false -input=false
