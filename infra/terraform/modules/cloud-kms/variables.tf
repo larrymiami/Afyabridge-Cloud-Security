@@ -14,22 +14,20 @@ variable "key_ring_name" {
 }
 
 variable "keys" {
-  description = "CryptoKeys keyed by stable logical name."
+  description = "Symmetric CMEK CryptoKeys keyed by stable logical name."
   type = map(object({
-    name                       = string
-    purpose                    = optional(string, "ENCRYPT_DECRYPT")
-    rotation_period            = optional(string, "7776000s")
-    destroy_scheduled_duration = optional(string, "2592000s")
-    labels                     = optional(map(string), {})
+    name                        = string
+    purpose                     = optional(string, "ENCRYPT_DECRYPT")
+    rotation_period             = optional(string, "7776000s")
+    destroy_scheduled_duration  = optional(string, "2592000s")
+    labels                      = optional(map(string), {})
     encrypter_decrypter_members = optional(set(string), [])
     viewer_members              = optional(set(string), [])
   }))
 
   validation {
-    condition = alltrue([
-      for key in values(var.keys) : contains(["ENCRYPT_DECRYPT", "MAC", "ASYMMETRIC_SIGN", "ASYMMETRIC_DECRYPT", "RAW_ENCRYPT_DECRYPT"], key.purpose)
-    ])
-    error_message = "Each key purpose must be supported by Cloud KMS."
+    condition     = alltrue([for key in values(var.keys) : key.purpose == "ENCRYPT_DECRYPT"])
+    error_message = "This CMEK module supports symmetric ENCRYPT_DECRYPT keys only."
   }
 
   validation {
