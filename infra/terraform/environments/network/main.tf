@@ -4,6 +4,10 @@ locals {
       for subnet in values(network.subnets) : subnet.ip_cidr_range
     ])
   }
+
+  private_service_cidrs = {
+    for country, config in var.private_service_access : country => "${config.address}/${config.prefix_length}"
+  }
 }
 
 module "country_networks" {
@@ -53,6 +57,69 @@ module "country_firewalls" {
       direction     = "INGRESS"
       priority      = 65534
       source_ranges = ["0.0.0.0/0"]
+      deny = [{
+        protocol = "all"
+      }]
+    }
+
+    allow-country-internal-egress = {
+      name               = "${each.value.network_name}-allow-country-internal-egress"
+      description        = "Allow outbound traffic only to subnets within the same country network."
+      direction          = "EGRESS"
+      priority           = 1000
+      destination_ranges = local.country_subnet_cidrs[each.key]
+      allow = [{
+        protocol = "all"
+      }]
+    }
+
+    allow-dns-egress = {
+      name               = "${each.value.network_name}-allow-dns-egress"
+      description        = "Allow DNS queries to the Google Cloud metadata resolver."
+      direction          = "EGRESS"
+      priority           = 1100
+      destination_ranges = ["169.254.169.254/32"]
+      allow = [
+        {
+          protocol = "udp"
+          ports    = ["53"]
+        },
+        {
+          protocol = "tcp"
+          ports    = ["53"]
+        }
+      ]
+    }
+
+    allow-restricted-google-apis = {
+      name               = "${each.value.network_name}-allow-restricted-google-apis"
+      description        = "Allow HTTPS only to restricted.googleapis.com virtual IPs."
+      direction          = "EGRESS"
+      priority           = 1200
+      destination_ranges = ["199.36.153.8/30"]
+      allow = [{
+        protocol = "tcp"
+        ports    = ["443"]
+      }]
+    }
+
+    allow-private-services-egress = {
+      name               = "${each.value.network_name}-allow-private-services-egress"
+      description        = "Allow traffic to the country-owned private service access range."
+      direction          = "EGRESS"
+      priority           = 1300
+      destination_ranges = [local.private_service_cidrs[each.key]]
+      allow = [{
+        protocol = "all"
+      }]
+    }
+
+    deny-other-egress = {
+      name               = "${each.value.network_name}-deny-other-egress"
+      description        = "Log and deny outbound traffic not approved by a higher-priority rule."
+      direction          = "EGRESS"
+      priority           = 65534
+      destination_ranges = ["0.0.0.0/0"]
       deny = [{
         protocol = "all"
       }]
