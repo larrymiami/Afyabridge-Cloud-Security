@@ -23,7 +23,10 @@ variable "country_logging_locations" {
   type        = map(string)
 
   validation {
-    condition     = setequals(toset(keys(var.country_logging_locations)), toset(["ke", "gh", "za"]))
+    condition = (
+      length(setsubtract(toset(keys(var.country_logging_locations)), toset(["ke", "gh", "za"]))) == 0 &&
+      length(setsubtract(toset(["ke", "gh", "za"]), toset(keys(var.country_logging_locations)))) == 0
+    )
     error_message = "country_logging_locations must define exactly ke, gh, and za."
   }
 }
@@ -33,7 +36,10 @@ variable "country_project_ids" {
   type        = map(set(string))
 
   validation {
-    condition     = setequals(toset(keys(var.country_project_ids)), toset(["ke", "gh", "za"]))
+    condition = (
+      length(setsubtract(toset(keys(var.country_project_ids)), toset(["ke", "gh", "za"]))) == 0 &&
+      length(setsubtract(toset(["ke", "gh", "za"]), toset(keys(var.country_project_ids)))) == 0
+    )
     error_message = "country_project_ids must define exactly ke, gh, and za."
   }
 
