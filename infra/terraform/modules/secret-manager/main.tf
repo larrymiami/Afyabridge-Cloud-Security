@@ -1,9 +1,9 @@
 resource "google_secret_manager_secret" "this" {
-  project                 = var.project_id
-  secret_id               = var.secret_id
-  labels                  = var.labels
-  version_destroy_ttl     = var.version_destroy_ttl
-  deletion_protection     = var.deletion_protection
+  project             = var.project_id
+  secret_id           = var.secret_id
+  labels              = var.labels
+  version_destroy_ttl = var.version_destroy_ttl
+  deletion_protection = var.deletion_protection
 
   replication {
     user_managed {
