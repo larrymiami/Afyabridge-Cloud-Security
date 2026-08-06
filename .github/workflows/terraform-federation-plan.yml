@@ -21,8 +21,11 @@ concurrency:
 jobs:
   plan:
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.pull_request.head.repo.full_name == github.repository
+      (github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository) &&
+      vars.GCP_FEDERATION_PROJECT_ID != '' &&
+      vars.GCP_WIF_PLAN_PROVIDER != '' &&
+      vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT != ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -34,22 +37,6 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
-      - name: Validate federation configuration variables
-        shell: bash
-        env:
-          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WIF_PLAN_PROVIDER }}
-          SERVICE_ACCOUNT: ${{ vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT }}
-          PROJECT_ID: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
-        run: |
-          set -euo pipefail
-          required=(WORKLOAD_IDENTITY_PROVIDER SERVICE_ACCOUNT PROJECT_ID)
-          for variable_name in "${required[@]}"; do
-            if [[ -z "${!variable_name:-}" ]]; then
-              echo "::error::Repository variable ${variable_name} is not configured."
-              exit 1
-            fi
-          done
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -71,7 +58,7 @@ jobs:
         run: terraform fmt -check -recursive infra/terraform
 
       - name: Initialize federation configuration
-        run: terraform -chdir=infra/terraform/environments/federation init -backend=false -input=false -lockfile=readonly
+        run: terraform -chdir=infra/terraform/environments/federation init -backend=false -input=false
 
       - name: Validate federation configuration
         run: terraform -chdir=infra/terraform/environments/federation validate -no-color
@@ -85,19 +72,39 @@ jobs:
           -no-color
           -out=federation.tfplan
 
-      - name: Render redacted plan summary
+      - name: Publish non-sensitive change summary
         shell: bash
         run: |
           set -euo pipefail
-          terraform -chdir=infra/terraform/environments/federation show \
-            -no-color federation.tfplan \
-            | sed -E 's/(token|secret|password|credential)[^=]*=.*/\1 = [REDACTED]/Ig' \
-            > /tmp/federation-plan.txt
-          tail -n 80 /tmp/federation-plan.txt >> "$GITHUB_STEP_SUMMARY"
+          terraform -chdir=infra/terraform/environments/federation show -json federation.tfplan \
+            | jq -r '
+              [
+                .resource_changes[]?.change.actions
+                | if . == ["create"] then "create"
+                  elif . == ["update"] then "update"
+                  elif . == ["delete"] then "delete"
+                  elif . == ["delete", "create"] or . == ["create", "delete"] then "replace"
+                  else "other"
+                  end
+              ]
+              | group_by(.)
+              | map({key: .[0], value: length})
+              | from_entries
+              | "## Terraform federation plan\n\n" +
+                "| Action | Count |\n|---|---:|\n" +
+                "| Create | \(.create // 0) |\n" +
+                "| Update | \(.update // 0) |\n" +
+                "| Replace | \(.replace // 0) |\n" +
+                "| Delete | \(.delete // 0) |\n" +
+                "| Other | \(.other // 0) |"
+            ' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove generated credentials and plan
         if: always()
         shell: bash
         run: |
           rm -f infra/terraform/environments/federation/federation.tfplan
-          rm -f "${{ steps.auth.outputs.credentials_file_path }}"
+          credentials_file="${{ steps.auth.outputs.credentials_file_path }}"
+          if [[ -n "$credentials_file" ]]; then
+            rm -f "$credentials_file"
+          fi
