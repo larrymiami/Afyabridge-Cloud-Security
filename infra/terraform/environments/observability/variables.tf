@@ -47,7 +47,7 @@ variable "country_project_ids" {
   validation {
     condition = length(distinct(flatten([
       for projects in values(var.country_project_ids) : tolist(projects)
-    ]))) == length(flatten([
+      ]))) == length(flatten([
       for projects in values(var.country_project_ids) : tolist(projects)
     ]))
     error_message = "A project ID cannot belong to more than one country boundary."
