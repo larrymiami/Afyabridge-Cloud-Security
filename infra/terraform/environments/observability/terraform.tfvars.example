@@ -1,0 +1,36 @@
+# Replace all synthetic identifiers and locations before planning or applying.
+organization_id   = "123456789012"
+logging_project_id = "afyabridge-shared-logging"
+
+# Select locations only after data-residency, service-availability, and KMS-location review.
+security_logging_location = "REPLACE_WITH_REVIEWED_SECURITY_LOG_LOCATION"
+
+country_logging_locations = {
+  ke = "REPLACE_WITH_REVIEWED_KE_LOG_LOCATION"
+  gh = "REPLACE_WITH_REVIEWED_GH_LOG_LOCATION"
+  za = "REPLACE_WITH_REVIEWED_ZA_LOG_LOCATION"
+}
+
+# Use the authoritative project IDs produced by the foundation stack.
+# A project must appear in exactly one country boundary.
+country_project_ids = {
+  ke = [
+    "afyabridge-ke-prod-app",
+    "afyabridge-ke-prod-data",
+  ]
+  gh = [
+    "afyabridge-gh-prod-app",
+    "afyabridge-gh-prod-data",
+  ]
+  za = [
+    "afyabridge-za-prod-app",
+    "afyabridge-za-prod-data",
+  ]
+}
+
+security_retention_days = 365
+country_retention_days  = 90
+
+# Retention locking is difficult to reverse. Enable only after legal,
+# privacy, recovery, and cost review in the target organization.
+lock_security_bucket = false
