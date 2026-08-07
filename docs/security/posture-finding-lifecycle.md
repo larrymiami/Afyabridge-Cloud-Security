@@ -96,13 +96,15 @@ An `open` or `in-remediation` finding that remains unresolved after its deadline
 
 A risk acceptance cannot be approved after the remediation deadline. This prevents an already-overdue finding from being retroactively made compliant by adding an exception.
 
-A currently `risk-accepted` finding may remain past the baseline remediation deadline only while its linked exception is still active. That is intentional: the exception is the explicit, time-bounded governance decision replacing the normal remediation deadline for that period.
+A currently `risk-accepted` finding may remain past the baseline remediation deadline only while the exception bound to its current risk-acceptance event is still active. That is intentional: the exception is the explicit, time-bounded governance decision replacing the normal remediation deadline for that period.
 
 ## Risk acceptance and security exceptions
 
 v0.10C extends the existing `security/exceptions.json` registry instead of creating a second waiver system.
 
-A risk-accepted finding must:
+Every `risk-accepted` lifecycle history event carries its own `exception_id`. Exception binding is therefore event-scoped rather than stored as a mutable top-level finding field. This matters when a finding has more than one separate acceptance period: each period retains the exact approval that authorized it instead of overwriting earlier audit history.
+
+A risk-acceptance event must:
 
 1. reference an existing `SEC-EX-YYYY-NNN` exception;
 2. be explicitly listed in that exception's `finding_ids`;
@@ -111,7 +113,7 @@ A risk-accepted finding must:
 5. use the exception gate appropriate to its source;
 6. map to a control whose catalogue entry explicitly permits exceptions;
 7. remain within both the global exception maximum and the control-specific maximum; and
-8. have been covered by the exception at the timestamp when risk was accepted.
+8. occur while that exact exception was authorized.
 
 The source-to-gate mapping is:
 
@@ -122,18 +124,47 @@ The source-to-gate mapping is:
 | security-command-center | cloud-posture |
 | terraform-drift | terraform-drift |
 
-The global exception validator also rejects impossible calendar dates, future-created exceptions, expired exceptions, ID/year inconsistencies, duplicate finding links, self-approval, and lifetimes longer than 90 days.
+A legacy top-level `exception_id` is rejected, and non-risk lifecycle events may not carry an exception ID.
+
+## Active and historical exception records
+
+The same `security/exceptions.json` registry preserves both current approvals and historical approval records.
+
+Every exception has one of two governed states:
+
+- `active` — a current time-bounded approval; or
+- `historical` — a retired approval retained as audit evidence.
+
+An active exception:
+
+- must not include `retired_on`;
+- must not be expired at the validation date; and
+- can authorize the current `risk-accepted` state.
+
+A historical exception:
+
+- must include `retired_on`;
+- must have been retired no earlier than creation and no later than its original expiry;
+- may be naturally expired now; and
+- cannot authorize a current risk acceptance.
+
+The global exception validator also rejects impossible calendar dates, future-created exceptions, invalid retirement dates, ID/year inconsistencies, duplicate finding links, self-approval, and lifetimes longer than 90 days.
 
 ### Historical exception semantics
 
-An active risk acceptance requires an exception that is active **now**.
+For each risk-acceptance event, the finding validator proves that its exact exception was valid at that event's timestamp.
 
-Once a finding leaves risk acceptance and is remediated or closed, the exception becomes historical audit evidence. Its later expiry does not invalidate the closed finding. The validator instead proves that the exception was valid at the original risk-acceptance timestamp.
+If the finding is currently `risk-accepted`, the exception on the terminal risk-acceptance event must additionally be `active` and unexpired **now**.
 
-This distinction avoids two unsafe outcomes:
+Once that acceptance period ends, the exception can be retired to `historical` while remaining in the same registry. A later expiry does not invalidate the finding history.
 
-- leaving active risk accepted indefinitely under an expired exception; or
-- making old, correctly closed audit records invalid simply because their historical exception naturally expired.
+This distinction avoids three unsafe outcomes:
+
+- leaving active risk accepted indefinitely under an expired approval;
+- deleting the historical approval record needed to explain earlier accepted risk; or
+- overwriting the first approval when the same finding later receives a different, separately governed exception.
+
+The test suite includes both a closed finding that retains an expired historical exception and a finding with two separate risk-acceptance periods tied to two different exception records.
 
 ## Resolution attempts and independent verification
 
@@ -205,7 +236,7 @@ The same `Security gate verdict` is the required status check protecting `main`,
 
 ## Evidence boundary
 
-v0.10C proves the **repository governance mechanics** for finding ownership, remediation deadlines, risk acceptance, resolution attempts, independent verification, and closure.
+v0.10C proves the **repository governance mechanics** for finding ownership, remediation deadlines, event-bound risk acceptance, active/historical exception records, resolution attempts, independent verification, and closure.
 
 It does not claim:
 
