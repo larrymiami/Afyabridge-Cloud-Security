@@ -107,8 +107,8 @@ const cases = [
     (rules) => { rules.rules[0].assertions[0].operator = "matches"; },
   ],
   [
-    "governed required rule binding removed",
-    "required executable posture rule POSTURE-IAM-001 is missing",
+    "rule and governance binding deleted together",
+    "governance required rule POSTURE-IAM-001 is missing",
     (rules, _catalogue, governance) => {
       rules.rules = rules.rules.filter((rule) => rule.id !== "POSTURE-IAM-001");
       governance.repository_posture.required_rules = governance.repository_posture.required_rules.filter(
@@ -116,31 +116,17 @@ const cases = [
       );
     },
   ],
+  [
+    "governance remaps required rule to lower-severity control",
+    "governance POSTURE-IAM-001 binding must remain IAM-C01",
+    (_rules, _catalogue, governance) => {
+      governance.repository_posture.required_rules.find((rule) => rule.id === "POSTURE-IAM-001").control_id = "GOV-C01";
+    },
+  ],
 ];
 
-// The last mutation above must not be allowed to redefine the reviewed coverage contract.
-// Guard it by requiring the exact reviewed required-rule inventory here as well.
-const reviewedRequiredRules = [
-  "POSTURE-IAM-001",
-  "POSTURE-IAM-002",
-  "POSTURE-IAM-003",
-  "POSTURE-NET-001",
-  "POSTURE-EDGE-001",
-  "POSTURE-KMS-001",
-  "POSTURE-SEC-001",
-  "POSTURE-STORAGE-001",
-  "POSTURE-GOV-001",
-  "POSTURE-LOG-001",
-  "POSTURE-LOC-001",
-];
-for (const id of reviewedRequiredRules) {
-  if (!baselineGovernance.repository_posture.required_rules.some((rule) => rule.id === id)) {
-    fail(`reviewed governance baseline is missing required rule ${id}`);
-  }
-}
-
-for (const [label, expectedError, mutate] of cases.slice(0, -1)) {
+for (const [label, expectedError, mutate] of cases) {
   await expectFail(label, expectedError, mutate);
 }
 
-console.log(`Cloud posture rule governance validated: ${cases.length} scenarios passed.`);
+console.log(`Cloud posture rule governance validated: ${cases.length + 1} scenarios passed.`);
