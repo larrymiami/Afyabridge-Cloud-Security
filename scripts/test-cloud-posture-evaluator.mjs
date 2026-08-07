@@ -59,3 +59,5 @@ for (const [label, expectedRule, expectedBlocking, mutate] of cases) {
 }
 
 console.log(`Cloud posture evaluator controls validated: ${cases.length + 1} scenarios passed.`);
+
+await import("./test-repository-posture-collector.mjs");
