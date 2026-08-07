@@ -22,7 +22,7 @@
 | v0.5 | Data protection and encryption architecture | **Completed** |
 | v0.6 | Application security baseline | **Completed** |
 | v0.7 | Infrastructure as code and secure GCP deployment | **In review** |
-| v0.8 | Shift-left CI/CD security pipeline | **Planned** |
+| v0.8 | Shift-left CI/CD security pipeline | **In review** |
 | v0.9 | Software supply-chain security | **Planned** |
 | v0.10 | Cloud security posture and governance | **Planned** |
 | v0.11 | Shift-right validation and runtime security | **Planned** |
@@ -187,15 +187,19 @@
 
 ## v0.8 — Shift-left CI/CD security pipeline
 
-**Status:** Planned  
-**Target control state:** Implemented and enforced
+**Status:** In review  
+**Control state:** Implemented and enforced in repository CI; live deployment and runtime validation remain out of scope
 
-- [ ] Add secret, static, dependency, license, IaC, container, and package scanning
-- [ ] Add API, schema, and policy-as-code checks
-- [ ] Create severity-based security quality gates and exception workflows
-- [ ] Publish machine-readable and human-readable evidence
+- [x] Add secret, static, dependency, license, IaC, container, and package scanning
+- [x] Add API, schema, and policy-as-code checks
+- [x] Create severity-based security quality gates and exception workflows
+- [x] Publish machine-readable and human-readable evidence
 
-**Primary outcome:** Security checks run before deployment and block unacceptable changes.
+**Validated:** Security gates workflow run #25 (`31167508061`) on commit `1cfb3f85e29548fb29ffed938660593ac1e47e96` completed successfully. The run validated full-history secret scanning, dependency and license review, CodeQL analysis, Terraform and package scanning, hardened container build and image scanning, OpenAPI contract drift checks, OPA/Rego policy evaluation, security-exception validation, and generation/upload of JSON and Markdown security evidence.
+
+**Current boundary:** v0.8 validates the configured repository and pull-request controls only. CodeQL analysis results still depend on repository code-scanning and merge-protection settings for alert-based merge blocking. Trivy ignores unfixed vulnerabilities by policy and blocks configured high/critical findings where remediation is available. The exception registry does not automatically suppress scanners. No live Google Cloud deployment, runtime attack simulation, dynamic API security testing, or production control effectiveness is claimed by this milestone.
+
+**Primary outcome:** Security checks run before deployment, block configured unacceptable changes, require reviewed time-bounded handling for exceptions, and produce auditable workflow evidence.
 
 ---
 
