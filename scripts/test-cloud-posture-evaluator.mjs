@@ -30,6 +30,7 @@ console.log("PASS allow: reviewed repository posture baseline");
 
 const cases = [
   ["service-account key creation policy disabled", "POSTURE-IAM-001", true, (s) => { s.facts.identity.service_account_key_creation_policy_enforced = false; }],
+  ["service-account key policy override guardrail removed", "POSTURE-IAM-001", true, (s) => { s.facts.identity.service_account_key_policy_override_guardrail = false; }],
   ["user-managed service-account key introduced", "POSTURE-IAM-001", true, (s) => { s.facts.identity.service_account_key_resources.push({path: "unsafe.tf", line: 1, value: "leaked"}); }],
   ["primitive IAM role introduced", "POSTURE-IAM-003", true, (s) => { s.facts.identity.primitive_role_assignments.push({path: "unsafe.tf", line: 1, value: "roles/owner"}); }],
   ["public IAM principal introduced", "POSTURE-IAM-003", true, (s) => { s.facts.identity.public_principal_assignments.push({path: "unsafe.tf", line: 1, value: "allUsers"}); }],
@@ -39,7 +40,9 @@ const cases = [
   ["Cloud Armor detached", "POSTURE-EDGE-001", true, (s) => { s.facts.edge.cloud_armor_attached = false; }],
   ["KMS rotation field removed", "POSTURE-KMS-001", true, (s) => { s.facts.kms.rotation_configured = false; }],
   ["KMS rotation default removed", "POSTURE-KMS-001", true, (s) => { s.facts.kms.rotation_default_configured = false; }],
+  ["KMS rotation override guardrail removed", "POSTURE-KMS-001", true, (s) => { s.facts.kms.rotation_override_guardrail = false; }],
   ["KMS destruction-delay default removed", "POSTURE-KMS-001", true, (s) => { s.facts.kms.destroy_delay_default_configured = false; }],
+  ["KMS destruction-delay override guardrail removed", "POSTURE-KMS-001", true, (s) => { s.facts.kms.destroy_delay_override_guardrail = false; }],
   ["Terraform-managed secret payload introduced", "POSTURE-SEC-001", true, (s) => { s.facts.secrets.plaintext_secret_version_resources.push({path: "unsafe.tf", line: 1, value: "payload"}); }],
   ["storage public access prevention removed", "POSTURE-STORAGE-001", true, (s) => { s.facts.storage.public_access_prevention_enforced = false; }],
   ["project ownership label removed", "POSTURE-GOV-001", false, (s) => { s.facts.governance.project_required_labels = s.facts.governance.project_required_labels.filter((label) => label !== "owner"); }],
