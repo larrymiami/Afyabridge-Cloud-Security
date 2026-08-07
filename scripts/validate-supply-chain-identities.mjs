@@ -114,6 +114,9 @@ const provenanceJob = jobBlock(supplyChain, "provenance");
 if (!/^\s*needs:\s*sbom\s*$/m.test(provenanceJob)) {
   fail("Supply-chain provenance job must depend on the unprivileged build/SBOM job");
 }
+if (!/^\s*if:\s*github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'\s*$/m.test(provenanceJob)) {
+  fail("Supply-chain provenance job must sign only trusted pushes to refs/heads/main");
+}
 if (count(provenanceJob, /^\s*id-token:\s*write\s*$/gm) !== 1) {
   fail("Supply-chain provenance job must receive exactly one GitHub OIDC grant");
 }
@@ -139,11 +142,35 @@ if (!/actions\/download-artifact@/.test(provenanceJob)) {
 if (!/sha256sum --check supply-chain-evidence\/SHA256SUMS/.test(provenanceJob)) {
   fail("Supply-chain provenance job must verify the build evidence handoff before signing");
 }
+if (!/test \"\$\(jq -r '\.source_commit' supply-chain-evidence\/build-metadata\.json\)\" = \"\$\{GITHUB_SHA\}\"/.test(provenanceJob)) {
+  fail("Supply-chain provenance job must bind the build source commit to the trusted main commit");
+}
+if (!/test \"\$\(jq -r '\.ref' supply-chain-evidence\/build-metadata\.json\)\" = \"refs\/heads\/main\"/.test(provenanceJob)) {
+  fail("Supply-chain provenance job must bind build metadata to refs/heads/main");
+}
 if (!/cosign sign-blob/.test(provenanceJob) || !/cosign verify-blob/.test(provenanceJob)) {
   fail("Supply-chain provenance job must keylessly sign and verify the exported image blob");
 }
+if (/\.github\/workflows\/supply-chain\.yml@\$\{GITHUB_REF\}/.test(provenanceJob)) {
+  fail("Supply-chain signing identity must not trust an arbitrary execution ref");
+}
+if (count(provenanceJob, /\.github\/workflows\/supply-chain\.yml@refs\/heads\/main/g) < 3) {
+  fail("Supply-chain signing and revocation checks must bind to the main workflow identity");
+}
+if (!/2>&1 \| tee supply-chain-signing-evidence\/cosign-verification\.txt/.test(provenanceJob)) {
+  fail("Cosign verification evidence must capture stderr as well as stdout");
+}
+if (!/test -s supply-chain-signing-evidence\/cosign-verification\.txt/.test(provenanceJob)) {
+  fail("Cosign verification evidence must be non-empty");
+}
 if (count(provenanceJob, /actions\/attest@/g) < 2) {
   fail("Supply-chain provenance job must create build provenance and SBOM attestations");
+}
+if (count(provenanceJob, /--source-ref \"\$GITHUB_REF\"/g) !== 2) {
+  fail("GitHub attestation verification must constrain both attestations to the trusted source ref");
+}
+if (count(provenanceJob, /--source-digest \"\$GITHUB_SHA\"/g) !== 2) {
+  fail("GitHub attestation verification must constrain both attestations to the trusted source digest");
 }
 if (count(provenanceJob, /check-supply-chain-revocation\.mjs/g) < 2) {
   fail("Supply-chain provenance job must enforce revocation before signing and after verification");
