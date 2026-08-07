@@ -1,6 +1,9 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
 const isDevelopment = process.env.NODE_ENV === "development";
+const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 const contentSecurityPolicy = [
   "default-src 'self'",
@@ -43,6 +46,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
+  output: "standalone",
+  outputFileTracingRoot: path.join(currentDirectory, "../.."),
 
   async headers() {
     return [
