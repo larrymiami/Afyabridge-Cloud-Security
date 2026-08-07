@@ -74,3 +74,9 @@ jobs:
 
       - name: Validate observability configuration
         run: terraform -chdir=infra/terraform/environments/observability validate -no-color
+
+      - name: Initialize edge configuration
+        run: terraform -chdir=infra/terraform/environments/edge init -backend=false -input=false
+
+      - name: Validate edge configuration
+        run: terraform -chdir=infra/terraform/environments/edge validate -no-color
