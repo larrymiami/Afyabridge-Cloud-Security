@@ -34,6 +34,22 @@ The posture model separates four layers that must not be conflated:
 
 A control can therefore be `ci-enforced` while still carrying `live_validation_required: true`. That means the repository prevents or detects a class of unsafe change, but the project does not yet claim that the equivalent Google Cloud runtime/effective-state control has been observed.
 
+## Authoritative control lifecycle
+
+The posture profile reuses IDs from `docs/security-control-matrix.md`, and the matrix lifecycle remains authoritative:
+
+| Matrix status | Meaning for v0.10A |
+|---|---|
+| `Planned` | The control must not be presented as an active posture-baseline control. |
+| `In progress` | Implementation or material validation is underway; this is used for the CSPM controls whose cloud/drift/finding outcome is not complete. |
+| `Implemented` | The control is configured or coded, but its full matrix validation condition may still require live or negative testing. |
+| `Validated` | Reserved for controls whose required positive and negative validation has actually passed. |
+| `Accepted` / `Deferred` | Must not silently remain in the active posture profile without a separate reviewed lifecycle decision. |
+
+The v0.10A catalogue currently maps to 13 `Implemented` and five `In progress` matrix controls. No posture control was promoted to `Validated` merely because Terraform or CI configuration exists.
+
+The executable validator rejects an active posture entry whose authoritative matrix row is still `Planned`, `Accepted`, or `Deferred`. This prevents the machine-readable posture view from drifting ahead of the project's source of truth.
+
 ## Validation states
 
 The machine-readable profile permits three current validation modes:
@@ -92,7 +108,9 @@ A posture control without an approved owner fails validation.
 
 ## Exceptions
 
-The posture baseline references the existing `security/exceptions.json` governance mechanism rather than creating an unrelated exception system.
+The posture baseline reuses the existing `security/exceptions.json` governance mechanism rather than creating an unrelated exception system.
+
+The validator binds the profile to that exact registry and to the reviewed fields `id`, `scope`, `rationale`, `compensating_controls`, `owner`, `approved_by`, `tracking_url`, `created_on`, and `expires_on`. Redirecting the profile to another JSON registry or removing a required field fails validation.
 
 The global exception ceiling remains 90 days. Individual posture controls can prohibit exceptions or set a stricter maximum. Critical posture controls that permit exceptions are capped at 30 days by the executable validator.
 
@@ -110,10 +128,12 @@ v0.10A validates the contract. v0.10C will extend the finding-to-exception lifec
 `scripts/validate-cloud-posture-catalogue.mjs` fails when the posture profile loses required properties, including when:
 
 - a posture control ID is duplicated or does not exist in the authoritative security control matrix;
+- an active posture control's matrix lifecycle falls back to `Planned`, `Accepted`, or `Deferred`;
 - a required control or posture category disappears;
 - an unknown country, environment, owner, validation mode, or detector is introduced;
 - an implementation reference points outside the repository or to a missing reviewed file;
 - Critical or High remediation governance is weakened;
+- the profile is redirected away from the reviewed security-exception registry or loses a required exception-governance field;
 - a repository-baseline profile claims Cloud Asset Inventory, Security Command Center, Cloud Logging, or Terraform drift detection is already live;
 - a live-pending control loses its pending rationale;
 - a control exception exceeds the global or Critical-control limit; or
@@ -127,21 +147,26 @@ node scripts/validate-cloud-posture-catalogue.mjs
 
 ## Negative compromise and governance tests
 
-`scripts/test-cloud-posture-catalogue.mjs` creates mutated in-memory posture fixtures and proves the validator fails closed. The current scenarios cover:
+`scripts/test-cloud-posture-catalogue.mjs` creates mutated in-memory posture fixtures and proves the validator fails closed. Each deny case also asserts the expected error text, so a mutation cannot be counted as successful merely because an unrelated validation happened to fail first.
+
+The current suite contains one passing baseline and fourteen denied mutations covering:
 
 - duplicate control IDs;
 - IDs not present in the authoritative control matrix;
+- an active posture entry pointing at a real matrix control still marked `Planned`;
 - unknown country scope;
 - unapproved control owners;
 - removal of required category coverage;
 - weakened Critical remediation SLA;
+- redirecting exceptions away from `security/exceptions.json`;
+- removal of the required exception approval field;
 - falsely activating Cloud Asset Inventory at repository-baseline stage;
 - falsely claiming a live cloud detector on an individual control;
 - removing a live-validation rationale;
 - pointing implementation evidence at a missing repository path; and
 - exceeding the reviewed exception lifetime.
 
-A clean baseline must also pass, so the test suite demonstrates both allow and deny behaviour.
+The suite currently reports **15 scenarios passed**: one allowed baseline plus fourteen expected denials.
 
 Run locally with:
 
@@ -162,17 +187,19 @@ They must not be changed to `active` merely because the Terraform or documentati
 
 The executable validator enforces this honesty boundary while the profile stage is `repository-baseline`.
 
+Fifteen of the eighteen current posture controls explicitly retain `live_validation_required: true`. That is intentional evidence of the project's current boundary rather than a deficiency hidden from the posture report.
+
 ## Planned progression
 
 v0.10 is intentionally split so the machine-readable baseline exists before live posture automation:
 
-- **v0.10A — posture baseline:** control profile, governance contract, executable validation, negative tests, and documentation.
+- **v0.10A — posture baseline:** control profile, governance contract, authoritative lifecycle traceability, executable validation, negative tests, and documentation.
 - **v0.10B — posture and drift checks:** evaluate reviewed IaC and, once available, live asset/effective configuration for IAM, network, DNS, logging, encryption, data location, and drift.
 - **v0.10C — governance lifecycle:** finding ownership, SLA, exceptions, compensating controls, remediation, expiry, and closure evidence.
 - **v0.10D — posture reporting:** machine-readable findings and human-readable posture summaries, trends, evidence, and threshold decisions.
 
 ## Current claim
 
-v0.10A can claim that AfyaBridge has a version-controlled, machine-readable posture baseline tied to the project's authoritative control IDs and that CI can fail closed when that baseline, its ownership, its evidence references, its severity governance, or its live-validation boundary is weakened.
+v0.10A can claim that AfyaBridge has a version-controlled, machine-readable posture baseline tied to the project's authoritative control IDs and lifecycle, and that CI can fail closed when that baseline, its ownership, its evidence references, its severity/exception governance, or its live-validation boundary is weakened.
 
 v0.10A does **not** claim that a live Google Cloud asset inventory has been queried, that Security Command Center findings have been ingested, that effective organization policy or IAM has been measured, that a real console drift event has been detected, or that a cloud finding has been remediated through the full governance lifecycle.
