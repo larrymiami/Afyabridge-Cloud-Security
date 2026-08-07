@@ -197,7 +197,7 @@ jobs:
           echo "$opa_bin" >> "$GITHUB_PATH"
 
       - name: Validate Rego formatting
-        run: opa fmt --check security/policies/*.rego
+        run: opa fmt --fail --diff security/policies/*.rego
 
       - name: Run Rego unit tests
         run: opa test security/policies --verbose
