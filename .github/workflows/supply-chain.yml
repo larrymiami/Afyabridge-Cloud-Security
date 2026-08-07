@@ -8,11 +8,13 @@ on:
       - "apps/**"
       - "packages/**"
       - "scripts/**"
+      - "security/supply-chain-revocations.json"
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
       - "apps/web/Dockerfile"
       - ".dockerignore"
+      - ".github/dependabot.yml"
       - ".github/workflows/**"
       - "infra/terraform/modules/cloud-run-service/**"
   push:
@@ -63,11 +65,23 @@ jobs:
           )
           test "$violations" -eq 0
 
-      - name: Validate build, signing, deploy, and runtime identity boundaries
-        run: node scripts/validate-supply-chain-identities.mjs
-
       - name: Prepare supply-chain evidence directory
         run: mkdir -p supply-chain-evidence
+
+      - name: Validate build, signing, deploy, and runtime identity boundaries
+        run: node scripts/validate-supply-chain-identities.mjs | tee supply-chain-evidence/identity-boundary-validation.txt
+
+      - name: Validate dependency risk and evidence governance
+        run: node scripts/validate-supply-chain-governance.mjs | tee supply-chain-evidence/governance-validation.txt
+
+      - name: Validate trust revocation registry
+        run: node scripts/check-supply-chain-revocation.mjs | tee supply-chain-evidence/revocation-registry-validation.txt
+
+      - name: Run supply-chain compromise tests
+        run: node scripts/test-supply-chain-compromise-controls.mjs | tee supply-chain-evidence/compromise-tests.txt
+
+      - name: Snapshot trust revocation policy
+        run: cp security/supply-chain-revocations.json supply-chain-evidence/revocations.json
 
       - name: Generate repository CycloneDX SBOM
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -131,12 +145,15 @@ jobs:
 
       - name: Record build artifact metadata
         shell: bash
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           image_id="$(docker image inspect --format='{{.Id}}' "afyabridge-web:${GITHUB_SHA}")"
           jq -n \
             --arg repository "${GITHUB_REPOSITORY}" \
             --arg commit "${GITHUB_SHA}" \
+            --arg source_commit "${SOURCE_COMMIT}" \
             --arg ref "${GITHUB_REF}" \
             --arg run_id "${GITHUB_RUN_ID}" \
             --arg run_attempt "${GITHUB_RUN_ATTEMPT}" \
@@ -145,6 +162,7 @@ jobs:
             '{
               repository: $repository,
               commit: $commit,
+              source_commit: $source_commit,
               ref: $ref,
               run_id: $run_id,
               run_attempt: $run_attempt,
@@ -162,6 +180,11 @@ jobs:
             supply-chain-evidence/image.cdx.json \
             supply-chain-evidence/image.spdx.json \
             supply-chain-evidence/build-metadata.json \
+            supply-chain-evidence/revocations.json \
+            supply-chain-evidence/identity-boundary-validation.txt \
+            supply-chain-evidence/governance-validation.txt \
+            supply-chain-evidence/revocation-registry-validation.txt \
+            supply-chain-evidence/compromise-tests.txt \
             "supply-chain-evidence/afyabridge-web-${GITHUB_SHA}.tar" \
             | tee supply-chain-evidence/SHA256SUMS
 
@@ -171,7 +194,7 @@ jobs:
           {
             echo "## Supply-chain build evidence"
             echo
-            echo "Built the web image, exported the exact image bytes, and generated CycloneDX/SPDX SBOMs before any signing identity was granted."
+            echo "Built the web image, exported the exact image bytes, generated CycloneDX/SPDX SBOMs, and validated dependency, retention, revocation, and compromise controls before any signing identity was granted."
             echo
             echo '```text'
             cat supply-chain-evidence/SHA256SUMS
@@ -197,6 +220,12 @@ jobs:
       attestations: write
 
     steps:
+      - name: Check out exact trust policy
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
       - name: Download unsigned build evidence
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -205,15 +234,35 @@ jobs:
 
       - name: Verify build evidence handoff
         shell: bash
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           sha256sum --check supply-chain-evidence/SHA256SUMS
+          cmp security/supply-chain-revocations.json supply-chain-evidence/revocations.json
           test "$(jq -r '.repository' supply-chain-evidence/build-metadata.json)" = "${GITHUB_REPOSITORY}"
           test "$(jq -r '.commit' supply-chain-evidence/build-metadata.json)" = "${GITHUB_SHA}"
+          test "$(jq -r '.source_commit' supply-chain-evidence/build-metadata.json)" = "${SOURCE_COMMIT}"
           test "$(jq -r '.ref' supply-chain-evidence/build-metadata.json)" = "${GITHUB_REF}"
           test "$(jq -r '.run_id' supply-chain-evidence/build-metadata.json)" = "${GITHUB_RUN_ID}"
           test "$(jq -r '.run_attempt' supply-chain-evidence/build-metadata.json)" = "${GITHUB_RUN_ATTEMPT}"
           test "$(jq -r '.artifact' supply-chain-evidence/build-metadata.json)" = "afyabridge-web-${GITHUB_SHA}.tar"
+
+      - name: Enforce revocation policy before signing
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p supply-chain-signing-evidence
+          artifact="supply-chain-evidence/afyabridge-web-${GITHUB_SHA}.tar"
+          artifact_digest="$(sha256sum "$artifact" | awk '{print $1}')"
+          workflow_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/supply-chain.yml@${GITHUB_REF}"
+          node scripts/check-supply-chain-revocation.mjs \
+            --source-sha "$SOURCE_COMMIT" \
+            --artifact-sha256 "$artifact_digest" \
+            --workflow-identity "$workflow_identity" \
+            | tee supply-chain-signing-evidence/revocation-pre-sign.txt
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
@@ -224,7 +273,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p supply-chain-signing-evidence
           artifact="supply-chain-evidence/afyabridge-web-${GITHUB_SHA}.tar"
           cosign sign-blob "$artifact" \
             --bundle supply-chain-signing-evidence/afyabridge-web.sigstore.json \
@@ -292,6 +340,21 @@ jobs:
           jq -e 'length > 0' supply-chain-signing-evidence/github-provenance-verification.json >/dev/null
           jq -e 'length > 0' supply-chain-signing-evidence/github-sbom-verification.json >/dev/null
 
+      - name: Re-check revocation policy after verification
+        shell: bash
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          artifact="supply-chain-evidence/afyabridge-web-${GITHUB_SHA}.tar"
+          artifact_digest="$(sha256sum "$artifact" | awk '{print $1}')"
+          workflow_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/supply-chain.yml@${GITHUB_REF}"
+          node scripts/check-supply-chain-revocation.mjs \
+            --source-sha "$SOURCE_COMMIT" \
+            --artifact-sha256 "$artifact_digest" \
+            --workflow-identity "$workflow_identity" \
+            | tee supply-chain-signing-evidence/revocation-post-verify.txt
+
       - name: Record signing evidence digests
         shell: bash
         run: |
@@ -301,15 +364,19 @@ jobs:
 
       - name: Publish provenance summary
         shell: bash
+        env:
+          SOURCE_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           {
             echo "## Signed supply-chain provenance"
             echo
-            echo "Verified the exact exported image artifact with both a keyless Sigstore Cosign signature and GitHub artifact attestations."
+            echo "Verified the exact exported image artifact with both a keyless Sigstore Cosign signature and GitHub artifact attestations, with the current revocation policy enforced before signing and after verification."
             echo
             echo "Signer workflow: \`${GITHUB_REPOSITORY}/.github/workflows/supply-chain.yml@${GITHUB_REF}\`"
             echo
-            echo "Source execution SHA: \`${GITHUB_SHA}\`"
+            echo "Source commit: \`${SOURCE_COMMIT}\`"
+            echo
+            echo "Workflow execution SHA: \`${GITHUB_SHA}\`"
             echo
             echo '```text'
             cat supply-chain-signing-evidence/SHA256SUMS
@@ -322,4 +389,4 @@ jobs:
           name: supply-chain-provenance-${{ github.sha }}
           path: supply-chain-signing-evidence/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
