@@ -116,6 +116,22 @@ const cases = [
     },
   },
   {
+    label: "exception registry redirected away from the reviewed contract",
+    expectedError: "exception_policy.registry must remain security/exceptions.json",
+    mutate: (_catalogue, governance) => {
+      governance.exception_policy.registry = "security/supply-chain-revocations.json";
+    },
+  },
+  {
+    label: "required exception approval field removed",
+    expectedError: "exception_policy.required_fields must match the reviewed security exception contract",
+    mutate: (_catalogue, governance) => {
+      governance.exception_policy.required_fields = governance.exception_policy.required_fields.filter(
+        (field) => field !== "approved_by",
+      );
+    },
+  },
+  {
     label: "live Cloud Asset Inventory overclaimed as operational",
     expectedError: "cloud-asset-inventory must remain planned while profile_stage is repository-baseline",
     mutate: (_catalogue, governance) => {
