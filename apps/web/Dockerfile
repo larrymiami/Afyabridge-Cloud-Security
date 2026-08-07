@@ -3,6 +3,12 @@ FROM node:22.14.0-alpine AS build
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+ENV APP_ENV=development
+ENV APP_COUNTRY=KE
+ENV APP_BASE_URL=http://localhost:3000
+ENV DATABASE_URL=postgresql://afyabridge:afyabridge-local-only@127.0.0.1:5432/afyabridge
+ENV LOG_LEVEL=info
 
 RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
 
