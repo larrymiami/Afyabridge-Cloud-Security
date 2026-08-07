@@ -28,7 +28,7 @@ jobs:
       vars.GCP_FEDERATION_PROJECT_ID != '' &&
       vars.GCP_WIF_PLAN_PROVIDER != '' &&
       vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT != ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -141,7 +141,7 @@ jobs:
 
   apply:
     needs: plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: production
     permissions:
