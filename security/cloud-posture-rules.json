@@ -12,6 +12,7 @@
       "assertions": [
         {"fact": "identity.service_account_key_creation_policy_enforced", "operator": "equals", "expected": true, "message": "The reviewed foundation must enforce iam.disableServiceAccountKeyCreation."},
         {"fact": "identity.service_account_key_upload_policy_enforced", "operator": "equals", "expected": true, "message": "The reviewed foundation must enforce iam.disableServiceAccountKeyUpload."},
+        {"fact": "identity.service_account_key_policy_override_guardrail", "operator": "equals", "expected": true, "message": "Foundation inputs must not allow the required service-account key policies to be disabled or omitted."},
         {"fact": "identity.service_account_key_resources", "operator": "empty", "message": "Terraform must not create user-managed service-account keys."}
       ]
     },
@@ -75,9 +76,11 @@
       "supported_sources": ["repository"],
       "assertions": [
         {"fact": "kms.rotation_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain an explicit rotation-period field."},
-        {"fact": "kms.rotation_default_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain a non-null reviewed rotation default."},
+        {"fact": "kms.rotation_default_configured", "operator": "equals", "expected": true, "message": "Module and workload inputs must retain the reviewed 90-day rotation default."},
+        {"fact": "kms.rotation_override_guardrail", "operator": "equals", "expected": true, "message": "Workload inputs must reject per-key rotation values outside the reviewed 90-day contract."},
         {"fact": "kms.destroy_delay_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain an explicit scheduled-destruction field."},
-        {"fact": "kms.destroy_delay_default_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain a non-null reviewed scheduled-destruction default."},
+        {"fact": "kms.destroy_delay_default_configured", "operator": "equals", "expected": true, "message": "Module and workload inputs must retain the reviewed 30-day scheduled-destruction default."},
+        {"fact": "kms.destroy_delay_override_guardrail", "operator": "equals", "expected": true, "message": "Workload inputs must reject per-key destruction delays outside the reviewed 30-day contract."},
         {"fact": "kms.prevent_destroy", "operator": "equals", "expected": true, "message": "Terraform must continue preventing accidental key destruction."}
       ]
     },
