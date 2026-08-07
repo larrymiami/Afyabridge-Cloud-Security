@@ -220,29 +220,24 @@ try {
   const registryPath = join(revocationFixture, "revocations.json");
   const revokedSource = "1111111111111111111111111111111111111111";
   const allowedSource = "2222222222222222222222222222222222222222";
-  await writeFile(
-    registryPath,
-    `${JSON.stringify(
+  const validRegistry = {
+    schema_version: 1,
+    revocations: [
       {
-        schema_version: 1,
-        revocations: [
-          {
-            id: "SC-REV-2026-001",
-            kind: "source-commit",
-            value: revokedSource,
-            reason:
-              "Synthetic compromised source used to prove fail-closed revocation behavior.",
-            revoked_on: "2026-08-07",
-            owner: "security",
-            tracking_url:
-              "https://github.com/larrymiami/Afyabridge-Cloud-Security/issues/1",
-          },
-        ],
+        id: "SC-REV-2026-001",
+        kind: "source-commit",
+        value: revokedSource,
+        reason:
+          "Synthetic compromised source used to prove fail-closed revocation behavior.",
+        revoked_on: "2026-08-07",
+        owner: "security",
+        tracking_url:
+          "https://github.com/larrymiami/Afyabridge-Cloud-Security/issues/1",
       },
-      null,
-      2,
-    )}\n`,
-  );
+    ],
+  };
+
+  await writeFile(registryPath, `${JSON.stringify(validRegistry, null, 2)}\n`);
 
   await expectPass("non-revoked source remains trusted", () =>
     runNode(revocationChecker, [
@@ -260,10 +255,20 @@ try {
       revokedSource,
     ]),
   );
+
+  const invalidDateRegistry = structuredClone(validRegistry);
+  invalidDateRegistry.revocations[0].revoked_on = "2026-02-31";
+  await writeFile(
+    registryPath,
+    `${JSON.stringify(invalidDateRegistry, null, 2)}\n`,
+  );
+  await expectFail("impossible revocation date is rejected", () =>
+    runNode(revocationChecker, ["--registry", registryPath]),
+  );
 } finally {
   await rm(revocationFixture, { recursive: true, force: true });
 }
 
 console.log(
-  `Supply-chain compromise controls validated: ${mutations.length + 2} scenarios passed.`,
+  `Supply-chain compromise controls validated: ${mutations.length + 3} scenarios passed.`,
 );
