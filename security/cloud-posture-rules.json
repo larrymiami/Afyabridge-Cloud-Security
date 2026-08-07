@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "profile_id": "AFYA-CSPM-BASELINE-1",
+  "check_set_id": "AFYA-CSPM-REPOSITORY-1",
+  "rules": [
+    {
+      "id": "POSTURE-IAM-001",
+      "control_id": "IAM-C01",
+      "title": "Service-account key creation and upload remain prohibited",
+      "claim_scope": "repository-desired-state",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "identity.service_account_key_creation_policy_enforced", "operator": "equals", "expected": true, "message": "The reviewed foundation must enforce iam.disableServiceAccountKeyCreation."},
+        {"fact": "identity.service_account_key_upload_policy_enforced", "operator": "equals", "expected": true, "message": "The reviewed foundation must enforce iam.disableServiceAccountKeyUpload."},
+        {"fact": "identity.service_account_key_resources", "operator": "empty", "message": "Terraform must not create user-managed service-account keys."}
+      ]
+    },
+    {
+      "id": "POSTURE-IAM-002",
+      "control_id": "IAM-C02",
+      "title": "Cloud Run uses a dedicated runtime identity",
+      "claim_scope": "repository-desired-state",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "identity.runtime_service_account_created", "operator": "equals", "expected": true, "message": "The Cloud Run module must create a dedicated runtime service account."},
+        {"fact": "identity.runtime_service_account_assigned", "operator": "equals", "expected": true, "message": "The Cloud Run revision template must execute as the dedicated runtime service account."}
+      ]
+    },
+    {
+      "id": "POSTURE-IAM-003",
+      "control_id": "CSPM-C01",
+      "title": "Repository Terraform contains no primitive roles or direct public principals",
+      "claim_scope": "repository-desired-state",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "identity.primitive_role_assignments", "operator": "empty", "message": "Terraform must not grant roles/owner, roles/editor, or roles/viewer directly."},
+        {"fact": "identity.public_principal_assignments", "operator": "empty", "message": "Terraform must not directly grant IAM membership to allUsers or allAuthenticatedUsers."}
+      ]
+    },
+    {
+      "id": "POSTURE-NET-001",
+      "control_id": "NET-C01",
+      "title": "Cloud SQL remains private by construction",
+      "claim_scope": "repository-desired-state",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "network.cloud_sql_public_ipv4_disabled", "operator": "equals", "expected": true, "message": "Cloud SQL public IPv4 must remain disabled."},
+        {"fact": "network.cloud_sql_private_network_configured", "operator": "equals", "expected": true, "message": "Cloud SQL must remain attached to a private network."}
+      ]
+    },
+    {
+      "id": "POSTURE-EDGE-001",
+      "control_id": "NET-C04",
+      "title": "Public traffic remains behind the reviewed HTTPS and Cloud Armor edge",
+      "claim_scope": "repository-desired-state",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "network.cloud_run_public_ingress_rejected", "operator": "equals", "expected": true, "message": "The Cloud Run module must reject unrestricted public ingress."},
+        {"fact": "edge.cloud_armor_attached", "operator": "equals", "expected": true, "message": "The regional backend must remain attached to Cloud Armor."},
+        {"fact": "edge.waf_deny_rules_configured", "operator": "equals", "expected": true, "message": "The edge must retain deny-mode preconfigured WAF rules."},
+        {"fact": "edge.rate_limit_configured", "operator": "equals", "expected": true, "message": "The edge must retain a request-throttling rule."},
+        {"fact": "edge.tls_minimum_12", "operator": "equals", "expected": true, "message": "The HTTPS edge must require at least TLS 1.2."},
+        {"fact": "edge.https_forwarding_rule_443", "operator": "equals", "expected": true, "message": "The approved public edge must expose HTTPS on port 443."},
+        {"fact": "edge.http_redirects_to_https", "operator": "equals", "expected": true, "message": "HTTP traffic must redirect to HTTPS."},
+        {"fact": "edge.frontend_dns_targets_managed_address", "operator": "equals", "expected": true, "message": "Managed DNS must resolve the application hostname to the reviewed edge address."},
+        {"fact": "edge.backend_logging_enabled", "operator": "equals", "expected": true, "message": "Load-balancer backend request logging must remain enabled."}
+      ]
+    },
+    {
+      "id": "POSTURE-KMS-001",
+      "control_id": "KMS-C03",
+      "title": "KMS keys retain rotation and destruction safeguards",
+      "claim_scope": "repository-desired-state",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "kms.rotation_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain an explicit rotation period."},
+        {"fact": "kms.destroy_delay_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain an explicit scheduled-destruction delay."},
+        {"fact": "kms.prevent_destroy", "operator": "equals", "expected": true, "message": "Terraform must continue preventing accidental key destruction."}
+      ]
+    },
+    {
+      "id": "POSTURE-SEC-001",
+      "control_id": "SEC-C02",
+      "title": "Runtime secret payloads remain outside Terraform-managed state and images",
+      "claim_scope": "repository-desired-state",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "secrets.secret_manager_resource_present", "operator": "equals", "expected": true, "message": "The infrastructure must retain Secret Manager containers for runtime secrets."},
+        {"fact": "secrets.plaintext_secret_version_resources", "operator": "empty", "message": "Terraform must not manage google_secret_manager_secret_version payload resources."},
+        {"fact": "secrets.cloud_run_secret_reference_configured", "operator": "equals", "expected": true, "message": "Cloud Run must consume secrets through Secret Manager references."}
+      ]
+    },
+    {
+      "id": "POSTURE-STORAGE-001",
+      "control_id": "CSPM-C01",
+      "title": "Cloud Storage public access protections remain enforced",
+      "claim_scope": "repository-desired-state",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "storage.public_access_prevention_enforced", "operator": "equals", "expected": true, "message": "Storage buckets must enforce public access prevention."},
+        {"fact": "storage.uniform_bucket_level_access_enabled", "operator": "equals", "expected": true, "message": "Storage buckets must use uniform bucket-level access."}
+      ]
+    },
+    {
+      "id": "POSTURE-GOV-001",
+      "control_id": "GOV-C01",
+      "title": "Projects retain required ownership, scope, and lifecycle metadata",
+      "claim_scope": "repository-desired-state",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "governance.project_required_labels", "operator": "contains_all", "expected": ["managed_by", "application", "country", "environment", "service", "owner", "cost_center", "data_classification"], "message": "Project creation must retain the full reviewed metadata label set."},
+        {"fact": "governance.auto_create_network_disabled", "operator": "equals", "expected": true, "message": "Projects must continue to disable automatic default-network creation."},
+        {"fact": "governance.production_deletion_protection_required", "operator": "equals", "expected": true, "message": "Production project deletion must remain explicitly prevented."}
+      ]
+    },
+    {
+      "id": "POSTURE-LOG-001",
+      "control_id": "MON-C01",
+      "title": "Centralized organization logging plumbing remains present",
+      "claim_scope": "repository-desired-state",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "logging.organization_sink_configured", "operator": "equals", "expected": true, "message": "The logging module must retain an organization-level sink."},
+        {"fact": "logging.central_log_bucket_configured", "operator": "equals", "expected": true, "message": "The logging module must retain a centralized log bucket."},
+        {"fact": "logging.sink_writer_binding_configured", "operator": "equals", "expected": true, "message": "The organization sink writer identity must retain bucket-writer access."},
+        {"fact": "logging.log_bucket_prevent_destroy", "operator": "equals", "expected": true, "message": "The centralized log bucket must remain protected from accidental Terraform destruction."}
+      ]
+    },
+    {
+      "id": "POSTURE-LOC-001",
+      "control_id": "CSPM-C02",
+      "title": "Repository country and environment scope guardrails remain enforced",
+      "claim_scope": "repository-partial",
+      "supported_sources": ["repository"],
+      "assertions": [
+        {"fact": "location.foundation_country_scope_validation", "operator": "equals", "expected": true, "message": "Foundation project inputs must remain restricted to approved country tokens."},
+        {"fact": "location.foundation_environment_scope_validation", "operator": "equals", "expected": true, "message": "Foundation project inputs must remain restricted to approved environment tokens."},
+        {"fact": "location.workload_country_scope_validation", "operator": "equals", "expected": true, "message": "Workload inventory inputs must remain country-scoped."}
+      ]
+    }
+  ]
+}
