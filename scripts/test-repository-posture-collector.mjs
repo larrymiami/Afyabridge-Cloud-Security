@@ -58,6 +58,19 @@ await runCase(
 );
 
 await runCase(
+  "service-account key policy override guardrail weakened",
+  (directory) => mutateFile(
+    directory,
+    "infra/terraform/environments/foundation/variables.tf",
+    (source) => source.replace(
+      'try(var.baseline_boolean_policies["iam.disableServiceAccountKeyCreation"], false)',
+      'try(var.baseline_boolean_policies["iam.disableServiceAccountKeyCreation"], true)',
+    ),
+  ),
+  (snapshot) => snapshot.facts.identity.service_account_key_policy_override_guardrail === false,
+);
+
+await runCase(
   "unsafe IAM and secret resources added to Terraform",
   async (directory) => {
     const target = join(directory, "infra/terraform/collector-unsafe.tf");
@@ -145,6 +158,16 @@ await runCase(
 );
 
 await runCase(
+  "KMS workload rotation override guardrail weakened",
+  (directory) => mutateFile(
+    directory,
+    "infra/terraform/environments/workloads/kms-variables.tf",
+    (source) => source.replace('key.rotation_period == "7776000s"', 'key.rotation_period != ""'),
+  ),
+  (snapshot) => snapshot.facts.kms.rotation_override_guardrail === false,
+);
+
+await runCase(
   "KMS destruction-delay default removed",
   (directory) => mutateFile(
     directory,
@@ -162,6 +185,16 @@ await runCase(
     (source) => source.replace('destroy_scheduled_duration  = optional(string, "2592000s")', 'destroy_scheduled_duration  = optional(string, "86400s")'),
   ),
   (snapshot) => snapshot.facts.kms.destroy_delay_default_configured === false,
+);
+
+await runCase(
+  "KMS workload destruction-delay override guardrail weakened",
+  (directory) => mutateFile(
+    directory,
+    "infra/terraform/environments/workloads/kms-variables.tf",
+    (source) => source.replace('key.destroy_scheduled_duration == "2592000s"', 'key.destroy_scheduled_duration != ""'),
+  ),
+  (snapshot) => snapshot.facts.kms.destroy_delay_override_guardrail === false,
 );
 
 await runCase(
@@ -208,4 +241,4 @@ await runCase(
   }
 }
 
-console.log("Repository posture collector compromise controls validated: 15 scenarios passed.");
+console.log("Repository posture collector compromise controls validated: 18 scenarios passed.");
