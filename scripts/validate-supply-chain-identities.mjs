@@ -15,24 +15,40 @@ function count(sourceText, pattern) {
   return [...sourceText.matchAll(pattern)].length;
 }
 
+function jobBlock(workflow, jobName) {
+  const pattern = new RegExp(
+    `(?:^|\\n)  ${jobName}:\\n[\\s\\S]*?(?=\\n  [A-Za-z0-9_-]+:\\n|$)`,
+  );
+  const match = workflow.match(pattern);
+  if (!match) fail(`Supply-chain workflow must define the ${jobName} job`);
+  return match[0];
+}
+
 const unprivilegedWorkflows = [
   ".github/workflows/application-baseline.yml",
   ".github/workflows/security-gates.yml",
-  ".github/workflows/supply-chain.yml",
   ".github/workflows/terraform-foundation.yml",
 ];
+
+const supplyChainPath = ".github/workflows/supply-chain.yml";
 
 const deploymentWorkflows = [
   ".github/workflows/terraform-federation-plan.yml",
   ".github/workflows/terraform-federation-apply.yml",
 ];
 
-for (const path of [...unprivilegedWorkflows, ...deploymentWorkflows]) {
+for (const path of [
+  ...unprivilegedWorkflows,
+  supplyChainPath,
+  ...deploymentWorkflows,
+]) {
   const text = await source(path);
   if (/runs-on:\s*ubuntu-latest/.test(text)) {
     fail(`${path} must use an explicit Ubuntu runner family`);
   }
-  const runnerRefs = [...text.matchAll(/runs-on:\s*(ubuntu-[^\s]+)/g)].map((match) => match[1]);
+  const runnerRefs = [...text.matchAll(/runs-on:\s*(ubuntu-[^\s]+)/g)].map(
+    (match) => match[1],
+  );
   if (runnerRefs.some((runner) => runner !== "ubuntu-24.04")) {
     fail(`${path} must use the reviewed ubuntu-24.04 runner family`);
   }
@@ -46,6 +62,79 @@ for (const path of unprivilegedWorkflows) {
   if (/google-github-actions\/auth@/m.test(text)) {
     fail(`${path} must not authenticate to Google Cloud`);
   }
+}
+
+const supplyChain = await source(supplyChainPath);
+if (!/^permissions:\n  contents:\s*read\s*$/m.test(supplyChain)) {
+  fail(`${supplyChainPath} must keep workflow-level permissions at contents: read`);
+}
+if (count(supplyChain, /^\s*id-token:\s*write\s*$/gm) !== 1) {
+  fail(`${supplyChainPath} must grant id-token: write exactly once, at the provenance job`);
+}
+if (count(supplyChain, /^\s*attestations:\s*write\s*$/gm) !== 1) {
+  fail(`${supplyChainPath} must grant attestations: write exactly once, at the provenance job`);
+}
+if (/^\s*(?:packages|artifact-metadata):\s*write\s*$/m.test(supplyChain)) {
+  fail(`${supplyChainPath} must not gain registry or artifact-metadata write permission for blob provenance`);
+}
+if (/google-github-actions\/auth@/m.test(supplyChain)) {
+  fail(`${supplyChainPath} must not authenticate to Google Cloud`);
+}
+
+const buildJob = jobBlock(supplyChain, "sbom");
+if (/^\s*id-token:\s*write\s*$/m.test(buildJob)) {
+  fail("Supply-chain build/SBOM job must not receive GitHub OIDC token permission");
+}
+if (/^\s*attestations:\s*write\s*$/m.test(buildJob)) {
+  fail("Supply-chain build/SBOM job must not receive attestation write permission");
+}
+if (/\bcosign\s+(?:sign|sign-blob)\b/.test(buildJob) || /actions\/attest@/.test(buildJob)) {
+  fail("Supply-chain build/SBOM job must not sign or attest its own outputs");
+}
+if (!/docker save\s+--output/.test(buildJob)) {
+  fail("Supply-chain build/SBOM job must export the exact built image for signing");
+}
+if (!/supply-chain-evidence\/SHA256SUMS/.test(buildJob)) {
+  fail("Supply-chain build/SBOM job must record artifact digests before handoff");
+}
+
+const provenanceJob = jobBlock(supplyChain, "provenance");
+if (!/^\s*needs:\s*sbom\s*$/m.test(provenanceJob)) {
+  fail("Supply-chain provenance job must depend on the unprivileged build/SBOM job");
+}
+if (count(provenanceJob, /^\s*id-token:\s*write\s*$/gm) !== 1) {
+  fail("Supply-chain provenance job must receive exactly one GitHub OIDC grant");
+}
+if (count(provenanceJob, /^\s*attestations:\s*write\s*$/gm) !== 1) {
+  fail("Supply-chain provenance job must receive exactly one attestation write grant");
+}
+if (!/^\s*contents:\s*read\s*$/m.test(provenanceJob)) {
+  fail("Supply-chain provenance job must retain read-only repository contents permission");
+}
+const signingWritePermissions = [
+  ...provenanceJob.matchAll(/^\s{6}([A-Za-z0-9-]+):\s*write\s*$/gm),
+].map((match) => match[1]);
+if (
+  signingWritePermissions.length !== 2 ||
+  !signingWritePermissions.includes("id-token") ||
+  !signingWritePermissions.includes("attestations")
+) {
+  fail("Supply-chain provenance job may write only id-token and attestations scopes");
+}
+if (!/actions\/download-artifact@/.test(provenanceJob)) {
+  fail("Supply-chain provenance job must consume the prior build artifact instead of rebuilding");
+}
+if (!/sha256sum --check supply-chain-evidence\/SHA256SUMS/.test(provenanceJob)) {
+  fail("Supply-chain provenance job must verify the build evidence handoff before signing");
+}
+if (!/cosign sign-blob/.test(provenanceJob) || !/cosign verify-blob/.test(provenanceJob)) {
+  fail("Supply-chain provenance job must keylessly sign and verify the exported image blob");
+}
+if (count(provenanceJob, /actions\/attest@/g) < 2) {
+  fail("Supply-chain provenance job must create build provenance and SBOM attestations");
+}
+if (/\bdocker build\b/.test(provenanceJob)) {
+  fail("Supply-chain provenance job must not rebuild the artifact it is signing");
 }
 
 const applicationWorkflow = await source(".github/workflows/application-baseline.yml");
@@ -82,7 +171,9 @@ if (!/^\s*environment:\s*production\s*$/m.test(apply)) {
 
 for (const path of [planPath, applyPath]) {
   const text = await source(path);
-  const checkouts = [...text.matchAll(/uses:\s*actions\/checkout@[^\n]+[\s\S]*?(?=\n\s*- name:|$)/g)];
+  const checkouts = [
+    ...text.matchAll(/uses:\s*actions\/checkout@[^\n]+[\s\S]*?(?=\n\s*- name:|$)/g),
+  ];
   if (checkouts.length === 0) fail(`${path} must check out the repository`);
   for (const checkout of checkouts) {
     if (!/persist-credentials:\s*false/.test(checkout[0])) {
@@ -92,7 +183,9 @@ for (const path of [planPath, applyPath]) {
 }
 
 const dockerfile = await source("apps/web/Dockerfile");
-const baseImages = [...dockerfile.matchAll(/^FROM\s+([^\s]+)/gm)].map((match) => match[1]);
+const baseImages = [...dockerfile.matchAll(/^FROM\s+([^\s]+)/gm)].map(
+  (match) => match[1],
+);
 if (baseImages.length < 2) {
   fail("Web image must retain separate build and runtime stages");
 }
@@ -116,4 +209,4 @@ if (/GCP_TERRAFORM_(?:PLAN|APPLY)_SERVICE_ACCOUNT/.test(cloudRunModule)) {
   fail("Cloud Run runtime module must not reference GitHub deployment identities");
 }
 
-console.log("Supply-chain identity and build boundaries validated.");
+console.log("Supply-chain build, signing, deploy, and runtime boundaries validated.");
