@@ -102,6 +102,16 @@ const mutations = [
       ),
   },
   {
+    label: "provenance signing gate expands beyond trusted main pushes",
+    validator: validateIdentityFixture,
+    path: ".github/workflows/supply-chain.yml",
+    transform: (text) =>
+      text.replace(
+        "    if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
+        "    if: always()",
+      ),
+  },
+  {
     label: "provenance job gains registry write permission",
     validator: validateIdentityFixture,
     path: ".github/workflows/supply-chain.yml",
@@ -129,6 +139,36 @@ const mutations = [
       text.replace(
         "          sha256sum --check supply-chain-evidence/SHA256SUMS",
         "          echo checksum-verification-removed",
+      ),
+  },
+  {
+    label: "attestation verification stops constraining the source ref",
+    validator: validateIdentityFixture,
+    path: ".github/workflows/supply-chain.yml",
+    transform: (text) =>
+      text.replace(
+        '            --source-ref "$GITHUB_REF" \\',
+        '            --source-ref "refs/pull/15/merge" \\',
+      ),
+  },
+  {
+    label: "signer identity trusts the execution ref dynamically",
+    validator: validateIdentityFixture,
+    path: ".github/workflows/supply-chain.yml",
+    transform: (text) =>
+      text.replace(
+        ".github/workflows/supply-chain.yml@refs/heads/main",
+        ".github/workflows/supply-chain.yml@${GITHUB_REF}",
+      ),
+  },
+  {
+    label: "Cosign verification evidence can be empty",
+    validator: validateIdentityFixture,
+    path: ".github/workflows/supply-chain.yml",
+    transform: (text) =>
+      text.replace(
+        "            2>&1 | tee supply-chain-signing-evidence/cosign-verification.txt",
+        "            | tee supply-chain-signing-evidence/cosign-verification.txt",
       ),
   },
   {
