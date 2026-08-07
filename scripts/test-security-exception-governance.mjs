@@ -93,6 +93,25 @@ await expectPass("posture finding risk acceptance uses existing exception regist
 
 {
   const exception = validException();
+  exception.created_on = "2026-08-08";
+  exception.expires_on = "2026-08-21";
+  await expectFail("future-created exception rejected", "exception cannot be created in the future", {
+    schema_version: 1,
+    exceptions: [exception],
+  });
+}
+
+{
+  const exception = validException();
+  exception.id = "SEC-EX-2025-001";
+  await expectFail("exception id year must match creation year", "exception id year must match created_on year", {
+    schema_version: 1,
+    exceptions: [exception],
+  });
+}
+
+{
+  const exception = validException();
   exception.finding_ids = ["CSPM-FND-2026-001", "CSPM-FND-2026-001"];
   await expectFail("duplicate finding linkage rejected", "duplicate finding id CSPM-FND-2026-001", {
     schema_version: 1,
@@ -128,4 +147,4 @@ await expectPass("posture finding risk acceptance uses existing exception regist
   });
 }
 
-console.log("Security exception governance validated: 8 scenarios passed.");
+console.log("Security exception governance validated: 10 scenarios passed.");
