@@ -238,8 +238,24 @@ jobs:
       - name: Validate cloud posture catalogue
         run: node scripts/validate-cloud-posture-catalogue.mjs
 
-      - name: Run cloud posture negative tests
+      - name: Run cloud posture catalogue negative tests
         run: node scripts/test-cloud-posture-catalogue.mjs
+
+      - name: Collect repository cloud posture
+        run: node scripts/collect-repository-cloud-posture.mjs --output "$RUNNER_TEMP/cloud-posture-snapshot.json"
+
+      - name: Evaluate repository cloud posture
+        run: |
+          node scripts/evaluate-cloud-posture.mjs \
+            --snapshot "$RUNNER_TEMP/cloud-posture-snapshot.json" \
+            --json "$RUNNER_TEMP/cloud-posture-evaluation.json" \
+            --markdown "$RUNNER_TEMP/cloud-posture-evaluation.md"
+
+      - name: Run cloud posture evaluator negative tests
+        run: node scripts/test-cloud-posture-evaluator.mjs
+
+      - name: Run Terraform drift evaluator tests
+        run: node scripts/test-terraform-drift-evaluator.mjs
 
   evidence:
     name: Security gate evidence
@@ -263,13 +279,27 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Generate machine-readable and human-readable evidence
+      - name: Generate cloud posture evidence
+        run: |
+          mkdir -p security-evidence
+          node scripts/collect-repository-cloud-posture.mjs \
+            --output security-evidence/cloud-posture-snapshot.json
+          node scripts/evaluate-cloud-posture.mjs \
+            --snapshot security-evidence/cloud-posture-snapshot.json \
+            --json security-evidence/cloud-posture-evaluation.json \
+            --markdown security-evidence/cloud-posture-evaluation.md
+
+      - name: Generate machine-readable and human-readable security evidence
         env:
           SECURITY_GATE_RESULTS: ${{ toJSON(needs) }}
         run: node scripts/generate-security-evidence.mjs security-evidence
 
       - name: Publish workflow summary
-        run: cat security-evidence/security-gates.md >> "$GITHUB_STEP_SUMMARY"
+        shell: bash
+        run: |
+          cat security-evidence/security-gates.md >> "$GITHUB_STEP_SUMMARY"
+          printf '\n---\n\n' >> "$GITHUB_STEP_SUMMARY"
+          cat security-evidence/cloud-posture-evaluation.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload security evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
