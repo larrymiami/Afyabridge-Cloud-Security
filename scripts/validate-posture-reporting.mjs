@@ -25,6 +25,27 @@ const EXPECTED_CONTROL_SEVERITIES = {
   "MON-C01": "high"
 };
 
+const REVIEWED_EXCEPTION_LIMITS = {
+  "IAM-C01": 30,
+  "IAM-C02": null,
+  "NET-C01": null,
+  "NET-C04": 30,
+  "KMS-C01": 30,
+  "KMS-C03": 30,
+  "SEC-C02": null,
+  "CICD-C01": null,
+  "DEP-C02": 30,
+  "CSPM-C01": 30,
+  "CSPM-C02": 30,
+  "CSPM-C03": 30,
+  "CSPM-C04": 30,
+  "CSPM-C05": null,
+  "GOV-C01": 90,
+  "GOV-C02": null,
+  "GOV-C03": null,
+  "MON-C01": 30
+};
+
 function arg(name, fallback) {
   const index = process.argv.indexOf(name);
   return index >= 0 ? process.argv[index + 1] : fallback;
@@ -64,6 +85,35 @@ export function validateReportingSeverityBaseline({ catalogue }) {
   }
 }
 
+export function validateReportingExceptionBaseline({ catalogue }) {
+  const controls = new Map((catalogue?.controls ?? []).map((control) => [control.id, control]));
+  for (const [controlId, reviewedMaximumDays] of Object.entries(REVIEWED_EXCEPTION_LIMITS)) {
+    const control = controls.get(controlId);
+    if (!control?.exception || typeof control.exception.allowed !== "boolean") {
+      throw new Error(`Posture reporting governance validation failed: ${controlId} exception policy is missing`);
+    }
+    if (reviewedMaximumDays === null) {
+      if (control.exception.allowed !== false) {
+        throw new Error(
+          `Posture reporting governance validation failed: ${controlId} must remain non-exceptionable`,
+        );
+      }
+      continue;
+    }
+    if (control.exception.allowed === false) continue;
+    if (!Number.isInteger(control.exception.maximum_days) || control.exception.maximum_days < 1) {
+      throw new Error(
+        `Posture reporting governance validation failed: ${controlId} allowed exception requires maximum_days`,
+      );
+    }
+    if (control.exception.maximum_days > reviewedMaximumDays) {
+      throw new Error(
+        `Posture reporting governance validation failed: ${controlId} exception maximum may not exceed reviewed ${reviewedMaximumDays} days`,
+      );
+    }
+  }
+}
+
 async function main() {
   const policyPath = arg("--policy", "security/posture-reporting-policy.json");
   const governancePath = arg("--governance", "security/cloud-posture-governance.json");
@@ -84,6 +134,7 @@ async function main() {
   validateReportingConfiguration({ policy, governance, history, asOf });
   validateCommittedHistoryBoundary({ governance, history });
   validateReportingSeverityBaseline({ catalogue });
+  validateReportingExceptionBaseline({ catalogue });
   for (const [label, path] of [
     ["findings registry", policy.findings_registry],
     ["exceptions registry", policy.exceptions_registry],
@@ -97,7 +148,7 @@ async function main() {
   }
 
   console.log(
-    `Posture reporting governance validated: policy=${policy.policy_id}; history_snapshots=${history.snapshots.length}; lookback_days=${policy.trend.lookback_days}; minimum_snapshots=${policy.trend.minimum_snapshots}; severity_bindings=${Object.keys(EXPECTED_CONTROL_SEVERITIES).length}; committed_history_mode=${governance.profile_stage === "repository-baseline" ? "empty-until-live" : "governed"}.`,
+    `Posture reporting governance validated: policy=${policy.policy_id}; history_snapshots=${history.snapshots.length}; lookback_days=${policy.trend.lookback_days}; minimum_snapshots=${policy.trend.minimum_snapshots}; severity_bindings=${Object.keys(EXPECTED_CONTROL_SEVERITIES).length}; exception_bindings=${Object.keys(REVIEWED_EXCEPTION_LIMITS).length}; committed_history_mode=${governance.profile_stage === "repository-baseline" ? "empty-until-live" : "governed"}.`,
   );
 }
 
