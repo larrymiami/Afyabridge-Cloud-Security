@@ -4,6 +4,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 const DEFAULT_ROOT = resolve(process.cwd());
+const SKIPPED_DIRECTORIES = new Set([".terraform"]);
 
 function repositoryPath(root, file) {
   return relative(root, file).split("\\").join("/");
@@ -18,7 +19,9 @@ async function walk(directory) {
   const files = [];
   for (const entry of entries) {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) files.push(...(await walk(path)));
+    if (entry.isDirectory() && !SKIPPED_DIRECTORIES.has(entry.name)) {
+      files.push(...(await walk(path)));
+    }
     if (entry.isFile()) files.push(path);
   }
   return files;
@@ -64,6 +67,7 @@ export async function collectRepositoryPosture(root = DEFAULT_ROOT) {
   const cloudRunVariables = await read(root, "infra/terraform/modules/cloud-run-service/variables.tf");
   const storage = await read(root, "infra/terraform/modules/cloud-storage/main.tf");
   const kms = await read(root, "infra/terraform/modules/cloud-kms/main.tf");
+  const kmsVariables = await read(root, "infra/terraform/modules/cloud-kms/variables.tf");
   const secretManager = await read(root, "infra/terraform/modules/secret-manager/main.tf");
   const projectFactory = await read(root, "infra/terraform/modules/project-factory/main.tf");
   const logging = await read(root, "infra/terraform/modules/centralized-logging/main.tf");
@@ -76,11 +80,18 @@ export async function collectRepositoryPosture(root = DEFAULT_ROOT) {
     terraformFiles,
     /\brole\s*=\s*"(roles\/(?:owner|editor|viewer))"/g,
   );
-  const publicPrincipalAssignments = collectMatches(
-    root,
-    terraformFiles,
-    /\bmember\s*=\s*"(allUsers|allAuthenticatedUsers)"/g,
-  );
+  const publicPrincipalAssignments = [
+    ...collectMatches(
+      root,
+      terraformFiles,
+      /\bmember\s*=\s*"(allUsers|allAuthenticatedUsers)"/g,
+    ),
+    ...collectMatches(
+      root,
+      terraformFiles,
+      /\bmembers\s*=\s*\[[^\]]*?"(allUsers|allAuthenticatedUsers)"[^\]]*?\]/gs,
+    ),
+  ];
   const serviceAccountKeyResources = collectMatches(
     root,
     terraformFiles,
@@ -144,6 +155,10 @@ export async function collectRepositoryPosture(root = DEFAULT_ROOT) {
           cloudRunVariables.includes('"INGRESS_TRAFFIC_INTERNAL_ONLY"') &&
           cloudRunVariables.includes('"INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER"') &&
           !cloudRunVariables.includes('"INGRESS_TRAFFIC_ALL"'),
+        cloud_run_public_invokers_rejected: has(
+          cloudRunVariables,
+          /!contains\(\["allUsers",\s*"allAuthenticatedUsers"\],\s*member\)/,
+        ),
       },
       storage: {
         public_access_prevention_enforced: has(
@@ -157,9 +172,17 @@ export async function collectRepositoryPosture(root = DEFAULT_ROOT) {
       },
       kms: {
         rotation_configured: has(kms, /rotation_period\s*=\s*each\.value\.rotation_period/),
+        rotation_default_configured: has(
+          kmsVariables,
+          /rotation_period\s*=\s*optional\(string,\s*"\d+s"\)/,
+        ),
         destroy_delay_configured: has(
           kms,
           /destroy_scheduled_duration\s*=\s*each\.value\.destroy_scheduled_duration/,
+        ),
+        destroy_delay_default_configured: has(
+          kmsVariables,
+          /destroy_scheduled_duration\s*=\s*optional\(string,\s*"\d+s"\)/,
         ),
         prevent_destroy: has(kms, /lifecycle\s*\{[\s\S]*?prevent_destroy\s*=\s*true[\s\S]*?\}/),
       },
