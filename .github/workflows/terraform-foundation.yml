@@ -24,7 +24,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
 
     steps:
       - name: Check out repository
@@ -37,7 +37,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Check formatting
-        run: terraform fmt -check -recursive infra/terraform
+        run: terraform fmt -check -diff -recursive infra/terraform
 
       - name: Initialize bootstrap configuration
         run: terraform -chdir=infra/terraform/bootstrap init -backend=false -input=false
@@ -68,3 +68,9 @@ jobs:
 
       - name: Validate federation configuration
         run: terraform -chdir=infra/terraform/environments/federation validate -no-color
+
+      - name: Initialize observability configuration
+        run: terraform -chdir=infra/terraform/environments/observability init -backend=false -input=false
+
+      - name: Validate observability configuration
+        run: terraform -chdir=infra/terraform/environments/observability validate -no-color

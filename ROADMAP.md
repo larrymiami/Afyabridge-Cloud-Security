@@ -163,17 +163,21 @@
 - [x] Implement separate Terraform plan and apply service accounts with fixed impersonation paths and primitive-role rejection
 - [x] Add pull-request plan and approval-gated saved-plan apply workflow contracts
 - [x] Add federation bootstrap, trust-boundary, role-matrix, and v0.7E static-validation documentation
+- [x] Implement centralized Cloud Logging buckets and non-intercepting organization sinks with country-aware routing, retention controls, and least-privilege sink-writer IAM
+- [x] Implement reusable Cloud Monitoring notification-channel and alert-policy controls with initial Cloud Run, Cloud SQL, and logging-pipeline policies
+- [x] Implement log-based security-detection metrics and disabled-by-default alert policies for IAM, public access, logging changes, KMS changes, and Secret Manager denial
+- [x] Add centralized-observability architecture, detection catalogue, response runbook, and v0.7F static-validation evidence
 - [ ] Bootstrap and live-validate Workload Identity Federation, repository variables, protected environment controls, and deployment IAM
-- [ ] Apply and validate the bootstrap, foundation, network, and workload stacks in a reviewed Google Cloud environment
-- [ ] Implement centralized logging, monitoring, and detection controls
+- [ ] Apply and validate the bootstrap, foundation, network, workload, and observability stacks in a reviewed Google Cloud environment
+- [ ] Live-validate logging delivery, country isolation, notification channels, monitoring alerts, detection metrics, detection alerts, and responder workflows
 - [ ] Configure edge security, public DNS, and certificates
 - [ ] Add live deployment, rollback, recovery, and runtime validation evidence
 
-**Validated:** Terraform infrastructure workflow run #148 on commit `738fdb3280a1c7d7882b1e74eb4cc1f637f8d57f` completed recursive formatting checks and backend-free initialization and static validation for the bootstrap, foundation, network, workload, and federation roots. The OIDC workflows remain unvalidated against live GitHub and Google Cloud federation.
+**Validated:** Terraform foundation workflow run #197 on commit `b73e1b77ee31018a81b64d330ec97dcc38267892` completed recursive formatting checks and backend-free initialization and static validation for the repository Terraform roots, including bootstrap, foundation, network, workload, federation, and observability. Earlier v0.7 evidence remains valid for the revisions it records. The OIDC workflows and observability controls remain unvalidated against live GitHub and Google Cloud execution.
 
-**Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Workload Identity Federation token exchange, service-account impersonation, protected-environment enforcement, exact deployment IAM, folder creation, project placement, effective organization policies, budgets, remote state, routes, DNS, firewall enforcement, private-service connectivity, managed-service agents, CMEK effectiveness, Artifact Registry behavior, secret access, Cloud Run ingress and egress, Cloud SQL backup and restore, storage recovery, log delivery, cross-country isolation, and drift remain deployment-validation requirements.
+**Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Workload Identity Federation token exchange, service-account impersonation, protected-environment enforcement, exact deployment IAM, folder creation, project placement, effective organization policies, budgets, remote state, routes, DNS, firewall enforcement, private-service connectivity, managed-service agents, CMEK effectiveness, Artifact Registry behavior, secret access, Cloud Run ingress and egress, Cloud SQL backup and restore, storage recovery, log delivery, sink writer behavior, log retention, cross-country telemetry isolation, notification delivery, alert triggering and recovery, log-based metric increments, detection fidelity, responder escalation, edge controls, and drift remain deployment-validation requirements.
 
-**Primary outcome:** Reproducible infrastructure and a keyless deployment-control path that implement the reviewed architecture without relying on manual console configuration for steady-state operation.
+**Primary outcome:** Reproducible infrastructure and a keyless deployment-control path with an implemented observability and detection foundation that map the reviewed architecture into Terraform without claiming unperformed live validation.
 
 ---
 
