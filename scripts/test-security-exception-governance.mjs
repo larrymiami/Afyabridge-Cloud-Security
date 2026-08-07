@@ -9,6 +9,7 @@ const execFileAsync = promisify(execFile);
 const root = resolve(process.cwd());
 const validator = join(root, "scripts/validate-security-exceptions.mjs");
 const asOf = "2026-08-07";
+let scenarioCount = 0;
 
 function fail(message) {
   throw new Error(`Security exception governance test failed: ${message}`);
@@ -44,6 +45,7 @@ async function run(registry) {
 }
 
 async function expectPass(label, registry) {
+  scenarioCount += 1;
   try {
     await run(registry);
     console.log(`PASS allow: ${label}`);
@@ -53,6 +55,7 @@ async function expectPass(label, registry) {
 }
 
 async function expectFail(label, expectedError, registry) {
+  scenarioCount += 1;
   try {
     await run(registry);
   } catch (error) {
@@ -80,7 +83,6 @@ await expectPass("posture finding risk acceptance uses existing exception regist
     exceptions: [exception],
   });
 }
-
 {
   const exception = validException();
   exception.created_on = "2026-06-01";
@@ -90,7 +92,6 @@ await expectPass("posture finding risk acceptance uses existing exception regist
     exceptions: [exception],
   });
 }
-
 {
   const exception = validException();
   exception.created_on = "2026-08-08";
@@ -100,7 +101,6 @@ await expectPass("posture finding risk acceptance uses existing exception regist
     exceptions: [exception],
   });
 }
-
 {
   const exception = validException();
   exception.id = "SEC-EX-2025-001";
@@ -109,7 +109,6 @@ await expectPass("posture finding risk acceptance uses existing exception regist
     exceptions: [exception],
   });
 }
-
 {
   const exception = validException();
   exception.finding_ids = ["CSPM-FND-2026-001", "CSPM-FND-2026-001"];
@@ -118,7 +117,6 @@ await expectPass("posture finding risk acceptance uses existing exception regist
     exceptions: [exception],
   });
 }
-
 {
   const exception = validException();
   exception.finding_ids = ["FINDING-1"];
@@ -127,7 +125,6 @@ await expectPass("posture finding risk acceptance uses existing exception regist
     exceptions: [exception],
   });
 }
-
 {
   const exception = validException();
   exception.approved_by = exception.owner;
@@ -136,7 +133,6 @@ await expectPass("posture finding risk acceptance uses existing exception regist
     exceptions: [exception],
   });
 }
-
 {
   const exception = validException();
   exception.created_on = "2026-08-07";
@@ -147,4 +143,4 @@ await expectPass("posture finding risk acceptance uses existing exception regist
   });
 }
 
-console.log("Security exception governance validated: 10 scenarios passed.");
+console.log(`Security exception governance validated: ${scenarioCount} scenarios passed.`);
