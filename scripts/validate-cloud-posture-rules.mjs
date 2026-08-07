@@ -6,6 +6,19 @@ const root = resolve(process.env.POSTURE_REPO_ROOT ?? process.cwd());
 const rulesArg = process.argv[2] ?? "security/cloud-posture-rules.json";
 const catalogueArg = process.argv[3] ?? "security/cloud-posture-controls.json";
 const governanceArg = process.argv[4] ?? "security/cloud-posture-governance.json";
+const REVIEWED_REQUIRED_RULE_BINDINGS = new Map([
+  ["POSTURE-IAM-001", "IAM-C01"],
+  ["POSTURE-IAM-002", "IAM-C02"],
+  ["POSTURE-IAM-003", "CSPM-C01"],
+  ["POSTURE-NET-001", "NET-C01"],
+  ["POSTURE-EDGE-001", "NET-C04"],
+  ["POSTURE-KMS-001", "KMS-C03"],
+  ["POSTURE-SEC-001", "SEC-C02"],
+  ["POSTURE-STORAGE-001", "CSPM-C01"],
+  ["POSTURE-GOV-001", "GOV-C01"],
+  ["POSTURE-LOG-001", "MON-C01"],
+  ["POSTURE-LOC-001", "CSPM-C02"],
+]);
 
 function fail(message) {
   throw new Error(`Cloud posture rule validation failed: ${message}`);
@@ -87,6 +100,12 @@ for (const [index, required] of array(policy.required_rules, "repository_posture
   if (!controls.has(controlId)) fail(`${id}: required control ${controlId} is not in the active catalogue`);
   requiredRules.set(id, controlId);
 }
+for (const [id, controlId] of REVIEWED_REQUIRED_RULE_BINDINGS) {
+  if (!requiredRules.has(id)) fail(`governance required rule ${id} is missing`);
+  if (requiredRules.get(id) !== controlId) {
+    fail(`governance ${id} binding must remain ${controlId}, got ${requiredRules.get(id)}`);
+  }
+}
 
 const ruleList = array(rules.rules, "rules.rules");
 const ruleMap = new Map();
@@ -132,7 +151,7 @@ for (const [index, rule] of ruleList.entries()) {
   ruleMap.set(id, rule);
 }
 
-for (const [requiredId, requiredControlId] of requiredRules) {
+for (const [requiredId, requiredControlId] of REVIEWED_REQUIRED_RULE_BINDINGS) {
   const rule = ruleMap.get(requiredId);
   if (!rule) fail(`required executable posture rule ${requiredId} is missing`);
   if (rule.control_id !== requiredControlId) {
@@ -141,5 +160,5 @@ for (const [requiredId, requiredControlId] of requiredRules) {
 }
 
 console.log(
-  `Cloud posture rules validated: ${ruleMap.size} rules, ${assertionCount} assertions, ${requiredRules.size} required rule/control bindings.`,
+  `Cloud posture rules validated: ${ruleMap.size} rules, ${assertionCount} assertions, ${REVIEWED_REQUIRED_RULE_BINDINGS.size} anchored rule/control bindings.`,
 );
