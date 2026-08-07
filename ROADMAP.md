@@ -23,7 +23,7 @@
 | v0.6 | Application security baseline | **Completed** |
 | v0.7 | Infrastructure as code and secure GCP deployment | **In review** |
 | v0.8 | Shift-left CI/CD security pipeline | **In review** |
-| v0.9 | Software supply-chain security | **Planned** |
+| v0.9 | Software supply-chain security | **In review** |
 | v0.10 | Cloud security posture and governance | **Planned** |
 | v0.11 | Shift-right validation and runtime security | **Planned** |
 | v0.12 | Incident response and recovery | **Planned** |
@@ -205,15 +205,19 @@
 
 ## v0.9 — Software supply-chain security
 
-**Status:** Planned  
-**Target control state:** Implemented and enforced
+**Status:** In review  
+**Control state:** Implemented and enforced in repository CI; live registry and deployment trust enforcement pending
 
-- [ ] Generate SBOMs and pin build dependencies
-- [ ] Harden runners and separate build, deploy, and runtime identities
-- [ ] Sign artifacts and generate verifiable provenance
-- [ ] Define dependency risk, artifact retention, revocation, and compromise tests
+- [x] Generate SBOMs and pin build dependencies
+- [x] Harden runners and separate build, deploy, and runtime identities
+- [x] Sign artifacts and generate verifiable provenance
+- [x] Define dependency risk, artifact retention, revocation, and compromise tests
 
-**Primary outcome:** Build and deployment systems can establish what was built, by whom, from which source, and whether the artifact is trusted.
+**Validated:** Supply chain workflow run #34 (`31175552878`) on commit `35fa8a49d6957ec5d88121cc150d4c84a8bdbd58` completed successfully. The run validated full-SHA workflow dependencies, runner and identity boundaries, weekly dependency-update policy, evidence-retention contracts, the trust-revocation registry, negative compromise scenarios, repository/image CycloneDX and SPDX SBOMs, exact-image export and SHA-256 handoff, keyless Sigstore signing, exact GitHub Actions workflow-identity verification, GitHub build provenance, GitHub SPDX SBOM attestation, pre-sign revocation enforcement, post-verification revocation enforcement, and evidence upload. Application baseline #96 and Terraform foundation #278 also succeeded for the same revision; Terraform federation plan #49 skipped as expected because live WIF repository variables are not configured.
+
+**Current boundary:** v0.9 proves repository-level build identity, artifact integrity, SBOM generation, keyless signing, attestation, dependency-governance, retention, revocation, and fail-closed compromise controls for the exported CI image archive. It does not yet claim that a live Artifact Registry digest has been signed, that Cloud Run or Binary Authorization enforces artifact trust at deployment, that Dependabot alerts/security updates are enabled by repository settings, or that Workload Identity Federation and Google Cloud deployment IAM have been live-validated. Those controls depend on the pending live v0.7 deployment path and later runtime validation.
+
+**Primary outcome:** The CI supply chain can establish what was built, from which source and workflow identity, verify the exact artifact and its SBOM/provenance, and make an explicit current-trust decision that can fail closed when a source, artifact, or signer identity is revoked.
 
 ---
 
