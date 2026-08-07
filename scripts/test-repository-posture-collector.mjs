@@ -36,6 +36,18 @@ async function runCase(label, mutate, assertUnsafe) {
   }
 }
 
+async function runSourceGuardCase(label, path, mutate, assertUnsafeSource) {
+  const directory = await fixture();
+  try {
+    await mutateFile(directory, path, mutate);
+    const source = stripHclComments(await readFile(join(directory, path), "utf8"));
+    if (!assertUnsafeSource(source)) fail(`${label} was not detected by the reviewed source guard`);
+    console.log(`PASS detect: ${label}`);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
 const commentFixture = `
 value = "https://example.com/#fragment//still-a-string"
 # ipv4_enabled = false
@@ -171,6 +183,16 @@ await runCase(
   (snapshot) => snapshot.facts.edge.cloud_armor_attached === false,
 );
 
+await runSourceGuardCase(
+  "backend request logging can be sampled to zero",
+  "infra/terraform/modules/regional-serverless-edge/variables.tf",
+  (source) => source.replace(
+    "var.backend_log_sample_rate > 0 && var.backend_log_sample_rate <= 1",
+    "var.backend_log_sample_rate >= 0 && var.backend_log_sample_rate <= 1",
+  ),
+  (source) => !/var\.backend_log_sample_rate\s*>\s*0\s*&&\s*var\.backend_log_sample_rate\s*<=\s*1/.test(source),
+);
+
 await runCase(
   "KMS rotation default removed",
   (directory) => mutateFile(
@@ -275,4 +297,4 @@ await runCase(
   }
 }
 
-console.log("Repository posture collector compromise controls validated: 20 scenarios passed.");
+console.log("Repository posture collector compromise controls validated: 21 scenarios passed.");
