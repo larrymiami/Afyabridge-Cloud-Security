@@ -55,8 +55,9 @@ jobs:
               violations=1
             fi
           done < <(
-            grep -RhoE 'uses:[[:space:]]*[^[:space:]#]+' .github/workflows \
-              | sed -E 's/^uses:[[:space:]]*//' \
+            grep -RhE '^[[:space:]]*uses:[[:space:]]*[^[:space:]#]+' .github/workflows \
+              | sed -E 's/^[[:space:]]*uses:[[:space:]]*//' \
+              | sed -E 's/[[:space:]]+#.*$//' \
               | sort -u
           )
           test "$violations" -eq 0
