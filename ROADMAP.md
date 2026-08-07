@@ -97,6 +97,7 @@
 - [x] Create data-protection, key-management, and backup-recovery diagrams
 
 **Primary outcome:** A country-aware protection model for sensitive health and identity data from creation through verified deletion.
+
 ---
 
 ## v0.6 — Application security baseline
@@ -196,6 +197,7 @@
 - [x] Publish machine-readable and human-readable evidence
 
 **Validated:** Security gates workflow run #25 (`31167508061`) on commit `1cfb3f85e29548fb29ffed938660593ac1e47e96` completed successfully. The run validated full-history secret scanning, dependency and license review, CodeQL analysis, Terraform and package scanning, hardened container build and image scanning, OpenAPI contract drift checks, OPA/Rego policy evaluation, security-exception validation, and generation/upload of JSON and Markdown security evidence. The later v0.9 reviewer hardening added the fail-closed `Security gate verdict`, which is now the protected-main required status check rather than treating evidence generation itself as a merge verdict.
+
 **Current boundary:** v0.8 validates the configured repository and pull-request controls only. CodeQL analysis results still depend on repository code-scanning settings for alert publication and visibility. Trivy ignores unfixed vulnerabilities by policy and blocks configured high/critical findings where remediation is available. The exception registry does not automatically suppress scanners. No live Google Cloud deployment, runtime attack simulation, dynamic API security testing, or production control effectiveness is claimed by this milestone.
 
 **Primary outcome:** Security checks run before deployment, block configured unacceptable changes, require reviewed time-bounded handling for exceptions, and produce auditable workflow evidence.
