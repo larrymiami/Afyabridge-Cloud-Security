@@ -102,6 +102,29 @@ const cases = [
     (rules) => { rules.rules[0].assertions = []; },
   ],
   [
+    "single required assertion deleted",
+    "required reviewed assertion is missing or changed",
+    (rules) => { rules.rules[0].assertions.splice(1, 1); },
+  ],
+  [
+    "required assertion fact remapped",
+    "required reviewed assertion is missing or changed",
+    (rules) => { rules.rules[0].assertions[0].fact = "identity.runtime_service_account_created"; },
+  ],
+  [
+    "required boolean expectation weakened",
+    "required reviewed assertion is missing or changed",
+    (rules) => { rules.rules[0].assertions[0].expected = false; },
+  ],
+  [
+    "required metadata set reduced",
+    "required reviewed assertion is missing or changed",
+    (rules) => {
+      const rule = rules.rules.find((entry) => entry.id === "POSTURE-GOV-001");
+      rule.assertions.find((assertion) => assertion.fact === "governance.project_required_labels").expected = ["owner"];
+    },
+  ],
+  [
     "unknown assertion operator",
     "unsupported operator matches",
     (rules) => { rules.rules[0].assertions[0].operator = "matches"; },
