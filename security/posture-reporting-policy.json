@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "policy_id": "AFYA-CSPM-REPORTING-1",
+  "profile_id": "AFYA-CSPM-BASELINE-1",
+  "findings_registry": "security/posture-findings.json",
+  "exceptions_registry": "security/exceptions.json",
+  "history_registry": "security/posture-metrics-history.json",
+  "decision_levels": [
+    "pass",
+    "attention",
+    "block"
+  ],
+  "unaccepted_active_statuses": [
+    "open",
+    "in-remediation",
+    "resolved"
+  ],
+  "risk_accepted_status": "risk-accepted",
+  "closed_status": "closed",
+  "thresholds": {
+    "maximum_overdue_findings": 0,
+    "maximum_unaccepted_merge_blocking_findings": 0,
+    "maximum_repository_blocking_findings": 0
+  },
+  "attention_conditions": {
+    "nonblocking_active_findings": true,
+    "risk_accepted_findings": true,
+    "repository_nonblocking_findings": true
+  },
+  "exception_expiry_warning_days": 7,
+  "trend": {
+    "lookback_days": 30,
+    "minimum_snapshots": 2,
+    "metrics": [
+      "active_findings",
+      "overdue_findings",
+      "risk_accepted_findings",
+      "closed_findings",
+      "repository_failing_rules",
+      "repository_blocking_findings"
+    ],
+    "metric_directions": {
+      "active_findings": "lower-is-better",
+      "overdue_findings": "lower-is-better",
+      "risk_accepted_findings": "lower-is-better",
+      "closed_findings": "higher-is-better",
+      "repository_failing_rules": "lower-is-better",
+      "repository_blocking_findings": "lower-is-better"
+    }
+  },
+  "evidence_boundary": {
+    "live_sources_required_for_operational_trends": true,
+    "repository_baseline_must_report_live_validation_pending": true
+  }
+}

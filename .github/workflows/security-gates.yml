@@ -244,6 +244,12 @@ jobs:
       - name: Run posture finding lifecycle tests
         run: node scripts/test-posture-finding-lifecycle.mjs
 
+      - name: Validate posture reporting governance
+        run: node scripts/validate-posture-reporting.mjs
+
+      - name: Run posture reporting governance-boundary tests
+        run: node scripts/test-posture-reporting-history-boundary.mjs
+
       - name: Validate cloud posture catalogue
         run: node scripts/validate-cloud-posture-catalogue.mjs
 
@@ -265,6 +271,17 @@ jobs:
             --snapshot "$RUNNER_TEMP/cloud-posture-snapshot.json" \
             --json "$RUNNER_TEMP/cloud-posture-evaluation.json" \
             --markdown "$RUNNER_TEMP/cloud-posture-evaluation.md"
+
+      - name: Generate governed posture report
+        run: |
+          node scripts/generate-posture-report.mjs \
+            --evaluation "$RUNNER_TEMP/cloud-posture-evaluation.json" \
+            --json "$RUNNER_TEMP/posture-report.json" \
+            --markdown "$RUNNER_TEMP/posture-report.md" \
+            --snapshot "$RUNNER_TEMP/posture-metrics-snapshot.json"
+
+      - name: Run posture reporting decision and trend tests
+        run: node scripts/test-posture-reporting.mjs
 
       - name: Run repository posture collector compromise tests
         run: node scripts/test-repository-posture-collector.mjs
@@ -298,6 +315,8 @@ jobs:
           persist-credentials: false
 
       - name: Generate cloud posture evidence
+        env:
+          POSTURE_GOVERNANCE_RESULT: ${{ needs.exceptions.result }}
         run: |
           mkdir -p security-evidence
           node scripts/collect-repository-cloud-posture.mjs \
@@ -306,6 +325,11 @@ jobs:
             --snapshot security-evidence/cloud-posture-snapshot.json \
             --json security-evidence/cloud-posture-evaluation.json \
             --markdown security-evidence/cloud-posture-evaluation.md
+          node scripts/generate-posture-report.mjs \
+            --evaluation security-evidence/cloud-posture-evaluation.json \
+            --json security-evidence/posture-report.json \
+            --markdown security-evidence/posture-report.md \
+            --snapshot security-evidence/posture-metrics-snapshot.json
 
       - name: Generate machine-readable and human-readable security evidence
         env:
@@ -318,6 +342,8 @@ jobs:
           cat security-evidence/security-gates.md >> "$GITHUB_STEP_SUMMARY"
           printf '\n---\n\n' >> "$GITHUB_STEP_SUMMARY"
           cat security-evidence/cloud-posture-evaluation.md >> "$GITHUB_STEP_SUMMARY"
+          printf '\n---\n\n' >> "$GITHUB_STEP_SUMMARY"
+          cat security-evidence/posture-report.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload security evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
