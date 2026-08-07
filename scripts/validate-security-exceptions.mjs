@@ -12,6 +12,8 @@ const allowedGates = new Set([
   "container-scan",
   "api-contract",
   "policy-as-code",
+  "cloud-posture",
+  "terraform-drift",
 ]);
 
 function fail(message) {
@@ -23,7 +25,9 @@ function parseDate(value, field, id) {
     fail(`${id}: ${field} must use YYYY-MM-DD`);
   }
   const date = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) fail(`${id}: ${field} is invalid`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    fail(`${id}: ${field} is invalid`);
+  }
   return date;
 }
 
@@ -50,6 +54,20 @@ for (const exception of registry.exceptions) {
   if (typeof exception.approved_by !== "string" || exception.approved_by.trim().length < 2) fail(`${id}: approved_by is required`);
   if (exception.owner === exception.approved_by) fail(`${id}: owner and approver must be different`);
   if (typeof exception.tracking_url !== "string" || !/^https:\/\/github\.com\/[^/]+\/[^/]+\/(issues|pull)\/\d+$/.test(exception.tracking_url)) fail(`${id}: tracking_url must reference a GitHub issue or pull request`);
+
+  if (exception.finding_ids !== undefined) {
+    if (!Array.isArray(exception.finding_ids) || exception.finding_ids.length === 0) {
+      fail(`${id}: finding_ids must be a non-empty array when provided`);
+    }
+    const findingIds = new Set();
+    for (const findingId of exception.finding_ids) {
+      if (!/^CSPM-FND-\d{4}-\d{3}$/.test(findingId ?? "")) {
+        fail(`${id}: finding_ids entries must match CSPM-FND-YYYY-NNN`);
+      }
+      if (findingIds.has(findingId)) fail(`${id}: duplicate finding id ${findingId}`);
+      findingIds.add(findingId);
+    }
+  }
 
   const created = parseDate(exception.created_on, "created_on", id);
   const expires = parseDate(exception.expires_on, "expires_on", id);
