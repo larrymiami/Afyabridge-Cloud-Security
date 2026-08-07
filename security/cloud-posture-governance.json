@@ -201,6 +201,15 @@
         "terraform-drift": "terraform-drift"
       }
     },
+    "resolution": {
+      "require_attempt_per_resolved_transition": true,
+      "allowed_verification_statuses": [
+        "pending",
+        "failed",
+        "passed"
+      ],
+      "failed_verification_requires_evidence": true
+    },
     "closure": {
       "require_independent_verifier": true,
       "minimum_evidence_items": 1
