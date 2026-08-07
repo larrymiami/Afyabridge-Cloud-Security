@@ -1,0 +1,90 @@
+variable "quota_project_id" {
+  description = "Project used for provider quota and service usage attribution."
+  type        = string
+}
+
+variable "default_region" {
+  description = "Default provider region."
+  type        = string
+  default     = "africa-south1"
+}
+
+variable "country_edges" {
+  description = "Country-isolated regional public edge definitions keyed exactly by ke, gh, and za."
+  type = map(object({
+    edge_project_id                         = string
+    network_project_id                      = string
+    dns_project_id                          = string
+    region                                  = string
+    network_id                              = string
+    proxy_only_subnet_name                  = string
+    proxy_only_subnet_cidr                  = string
+    cloud_run_service_name                  = string
+    name_prefix                             = string
+    dns_zone_name                           = string
+    dns_zone_dns_name                       = string
+    hostname                                = string
+    dns_ttl                                 = optional(number, 300)
+    network_tier                            = optional(string, "STANDARD")
+    backend_timeout_seconds                 = optional(number, 30)
+    backend_log_sample_rate                 = optional(number, 1)
+    cloud_armor_preview                     = optional(bool, true)
+    cloud_armor_waf_sensitivity             = optional(number, 1)
+    cloud_armor_rate_limit_count            = optional(number, 300)
+    cloud_armor_rate_limit_interval_seconds = optional(number, 60)
+  }))
+
+  validation {
+    condition = (
+      length(setsubtract(toset(keys(var.country_edges)), toset(["ke", "gh", "za"]))) == 0 &&
+      length(setsubtract(toset(["ke", "gh", "za"]), toset(keys(var.country_edges)))) == 0
+    )
+    error_message = "country_edges must contain exactly ke, gh, and za."
+  }
+
+  validation {
+    condition     = length(distinct([for edge in values(var.country_edges) : edge.edge_project_id])) == length(var.country_edges)
+    error_message = "Each country edge must use a distinct edge project."
+  }
+
+  validation {
+    condition     = length(distinct([for edge in values(var.country_edges) : edge.proxy_only_subnet_cidr])) == length(var.country_edges)
+    error_message = "Proxy-only subnet CIDRs must be unique across country boundaries."
+  }
+
+  validation {
+    condition     = length(distinct([for edge in values(var.country_edges) : edge.hostname])) == length(var.country_edges)
+    error_message = "Public edge hostnames must be unique across country boundaries."
+  }
+
+  validation {
+    condition     = length(distinct([for edge in values(var.country_edges) : "${edge.dns_project_id}/${edge.dns_zone_name}"])) == length(var.country_edges)
+    error_message = "Each country edge must use a distinct Cloud DNS managed zone."
+  }
+
+  validation {
+    condition = alltrue([
+      for country, edge in var.country_edges :
+      strcontains(edge.edge_project_id, "-${country}-") &&
+      strcontains(edge.network_project_id, "-${country}-") &&
+      strcontains(edge.dns_project_id, "-${country}-") &&
+      strcontains(edge.name_prefix, "-${country}-")
+    ])
+    error_message = "Country edge, network project, DNS project, and resource prefix values must carry the matching country token."
+  }
+
+  validation {
+    condition     = alltrue([for edge in values(var.country_edges) : endswith("${edge.hostname}.", edge.dns_zone_dns_name)])
+    error_message = "Each public hostname must be contained within its country DNS zone."
+  }
+
+  validation {
+    condition     = alltrue([for edge in values(var.country_edges) : edge.cloud_armor_waf_sensitivity >= 1 && edge.cloud_armor_waf_sensitivity <= 4])
+    error_message = "Each Cloud Armor WAF sensitivity must be between 1 and 4."
+  }
+
+  validation {
+    condition     = alltrue([for edge in values(var.country_edges) : edge.cloud_armor_rate_limit_count >= 1])
+    error_message = "Each Cloud Armor rate-limit count must be at least 1."
+  }
+}
