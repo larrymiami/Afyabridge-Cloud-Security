@@ -38,6 +38,7 @@ resource "google_compute_region_backend_service" "cloud_run" {
   protocol              = "HTTP"
   load_balancing_scheme = "EXTERNAL_MANAGED"
   timeout_sec           = var.backend_timeout_seconds
+  security_policy       = google_compute_region_security_policy.edge.self_link
 
   backend {
     group = google_compute_region_network_endpoint_group.cloud_run.id
