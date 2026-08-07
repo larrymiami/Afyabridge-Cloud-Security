@@ -24,6 +24,18 @@ function jobBlock(workflow, jobName) {
   return match[0];
 }
 
+function validateCheckoutCredentials(text, label) {
+  const checkouts = [
+    ...text.matchAll(/uses:\s*actions\/checkout@[^\n]+[\s\S]*?(?=\n\s*- name:|$)/g),
+  ];
+  if (checkouts.length === 0) fail(`${label} must check out the repository`);
+  for (const checkout of checkouts) {
+    if (!/persist-credentials:\s*false/.test(checkout[0])) {
+      fail(`${label} checkout credentials must not persist`);
+    }
+  }
+}
+
 const unprivilegedWorkflows = [
   ".github/workflows/application-baseline.yml",
   ".github/workflows/security-gates.yml",
@@ -133,9 +145,16 @@ if (!/cosign sign-blob/.test(provenanceJob) || !/cosign verify-blob/.test(proven
 if (count(provenanceJob, /actions\/attest@/g) < 2) {
   fail("Supply-chain provenance job must create build provenance and SBOM attestations");
 }
+if (count(provenanceJob, /check-supply-chain-revocation\.mjs/g) < 2) {
+  fail("Supply-chain provenance job must enforce revocation before signing and after verification");
+}
+if (!/cmp security\/supply-chain-revocations\.json supply-chain-evidence\/revocations\.json/.test(provenanceJob)) {
+  fail("Supply-chain provenance job must bind the checked-out revocation policy to the checksummed build snapshot");
+}
 if (/\bdocker build\b/.test(provenanceJob)) {
   fail("Supply-chain provenance job must not rebuild the artifact it is signing");
 }
+validateCheckoutCredentials(provenanceJob, "Supply-chain provenance job");
 
 const applicationWorkflow = await source(".github/workflows/application-baseline.yml");
 if (!/image:\s*postgres:[^\s]+@sha256:[0-9a-f]{64}/i.test(applicationWorkflow)) {
@@ -171,15 +190,7 @@ if (!/^\s*environment:\s*production\s*$/m.test(apply)) {
 
 for (const path of [planPath, applyPath]) {
   const text = await source(path);
-  const checkouts = [
-    ...text.matchAll(/uses:\s*actions\/checkout@[^\n]+[\s\S]*?(?=\n\s*- name:|$)/g),
-  ];
-  if (checkouts.length === 0) fail(`${path} must check out the repository`);
-  for (const checkout of checkouts) {
-    if (!/persist-credentials:\s*false/.test(checkout[0])) {
-      fail(`${path} checkout credentials must not persist`);
-    }
-  }
+  validateCheckoutCredentials(text, path);
 }
 
 const dockerfile = await source("apps/web/Dockerfile");
@@ -209,4 +220,4 @@ if (/GCP_TERRAFORM_(?:PLAN|APPLY)_SERVICE_ACCOUNT/.test(cloudRunModule)) {
   fail("Cloud Run runtime module must not reference GitHub deployment identities");
 }
 
-console.log("Supply-chain build, signing, deploy, and runtime boundaries validated.");
+console.log("Supply-chain build, signing, revocation, deploy, and runtime boundaries validated.");
