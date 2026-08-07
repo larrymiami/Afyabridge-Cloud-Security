@@ -62,7 +62,7 @@ jobs:
         run: terraform fmt -check -recursive infra/terraform
 
       - name: Initialize federation configuration
-        run: terraform -chdir=infra/terraform/environments/federation init -backend=false -input=false
+        run: terraform -chdir=infra/terraform/environments/federation init -backend=false -input=false -lockfile=readonly
 
       - name: Validate federation configuration
         run: terraform -chdir=infra/terraform/environments/federation validate -no-color
