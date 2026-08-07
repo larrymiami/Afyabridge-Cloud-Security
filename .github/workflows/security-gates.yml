@@ -247,6 +247,9 @@ jobs:
       - name: Validate posture reporting governance
         run: node scripts/validate-posture-reporting.mjs
 
+      - name: Run posture reporting governance-boundary tests
+        run: node scripts/test-posture-reporting-history-boundary.mjs
+
       - name: Validate cloud posture catalogue
         run: node scripts/validate-cloud-posture-catalogue.mjs
 
