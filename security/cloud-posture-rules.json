@@ -52,15 +52,15 @@
     {
       "id": "POSTURE-EDGE-001",
       "control_id": "NET-C04",
-      "title": "Public traffic remains behind the reviewed HTTPS and Cloud Armor edge",
+      "title": "Public traffic remains behind the reviewed HTTPS edge with Cloud Armor controls configured",
       "claim_scope": "repository-desired-state",
       "supported_sources": ["repository"],
       "assertions": [
         {"fact": "network.cloud_run_public_ingress_rejected", "operator": "equals", "expected": true, "message": "The Cloud Run module must reject unrestricted public ingress."},
         {"fact": "network.cloud_run_public_invokers_rejected", "operator": "equals", "expected": true, "message": "The Cloud Run module must reject allUsers and allAuthenticatedUsers invokers."},
         {"fact": "edge.cloud_armor_attached", "operator": "equals", "expected": true, "message": "The regional backend must remain attached to Cloud Armor."},
-        {"fact": "edge.waf_deny_rules_configured", "operator": "equals", "expected": true, "message": "The edge must retain deny-mode preconfigured WAF rules."},
-        {"fact": "edge.rate_limit_configured", "operator": "equals", "expected": true, "message": "The edge must retain a request-throttling rule."},
+        {"fact": "edge.waf_deny_rules_configured", "operator": "equals", "expected": true, "message": "The edge must retain preconfigured WAF deny actions; live enforcement remains preview-first until deliberately promoted and validated."},
+        {"fact": "edge.rate_limit_configured", "operator": "equals", "expected": true, "message": "The edge must retain configured throttle and deny(429) actions; live enforcement remains preview-first until deliberately promoted and validated."},
         {"fact": "edge.tls_minimum_12", "operator": "equals", "expected": true, "message": "The HTTPS edge must require at least TLS 1.2."},
         {"fact": "edge.https_forwarding_rule_443", "operator": "equals", "expected": true, "message": "The approved public edge must expose HTTPS on port 443."},
         {"fact": "edge.http_redirects_to_https", "operator": "equals", "expected": true, "message": "HTTP traffic must redirect to HTTPS."},
