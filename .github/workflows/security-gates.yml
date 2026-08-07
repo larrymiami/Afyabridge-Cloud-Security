@@ -315,6 +315,8 @@ jobs:
           persist-credentials: false
 
       - name: Generate cloud posture evidence
+        env:
+          POSTURE_GOVERNANCE_RESULT: ${{ needs.exceptions.result }}
         run: |
           mkdir -p security-evidence
           node scripts/collect-repository-cloud-posture.mjs \
