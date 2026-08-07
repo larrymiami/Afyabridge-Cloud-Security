@@ -1,5 +1,5 @@
 output "frontend_address" {
-  description = "Reserved regional public IPv4 address for the future HTTPS frontend."
+  description = "Reserved regional public IPv4 address for the HTTPS frontend."
   value       = google_compute_address.frontend.address
 }
 
@@ -19,7 +19,7 @@ output "backend_service_id" {
 }
 
 output "url_map_id" {
-  description = "Regional URL map ID for the future HTTPS target proxy."
+  description = "Regional HTTPS URL map ID."
   value       = google_compute_region_url_map.https.id
 }
 
@@ -36,5 +36,21 @@ output "cloud_armor_policy" {
       interval_seconds = var.cloud_armor_rate_limit_interval_seconds
       key              = "IP"
     }
+  }
+}
+
+output "public_https" {
+  description = "Country public DNS, certificate, TLS policy, and frontend inventory."
+  value = {
+    hostname                    = var.hostname
+    dns_zone_name               = google_dns_managed_zone.public.name
+    dns_zone_dns_name           = google_dns_managed_zone.public.dns_name
+    certificate_id              = google_certificate_manager_certificate.https.id
+    certificate_dns_auth_id     = google_certificate_manager_dns_authorization.https.id
+    tls_policy_id               = google_compute_region_ssl_policy.https.id
+    https_target_proxy_id       = google_compute_region_target_https_proxy.https.id
+    https_forwarding_rule_id    = google_compute_forwarding_rule.https.id
+    http_redirect_target_id     = google_compute_region_target_http_proxy.http_redirect.id
+    http_redirect_forwarding_id = google_compute_forwarding_rule.http_redirect.id
   }
 }
