@@ -29,19 +29,19 @@ The repository collector is operational in v0.10B. A live Google Cloud collector
 
 `scripts/collect-repository-cloud-posture.mjs` derives normalized facts from reviewed Terraform modules and environment contracts. Current facts cover:
 
-- service-account key creation/upload organization-policy intent;
+- service-account key creation/upload organization-policy intent plus non-disableable foundation input guardrails;
 - service-account-key, primitive-role, and direct public-principal Terraform resources/bindings;
 - dedicated Cloud Run runtime identity, non-public ingress, and public-invoker rejection;
 - private Cloud SQL networking;
 - Cloud Storage public-access prevention and uniform bucket-level access;
-- KMS rotation/destruction fields, the reviewed 90-day rotation and 30-day scheduled-destruction defaults, and destroy protection;
+- KMS rotation/destruction fields, the reviewed 90-day rotation and 30-day scheduled-destruction defaults, workload-level override guardrails, and destroy protection;
 - Secret Manager use without Terraform-managed secret payload versions;
 - Cloud Armor, WAF, rate limiting, TLS, HTTPS redirect, DNS, and backend logging;
 - project metadata, default-network prohibition, and production deletion protection;
 - centralized organization logging plumbing; and
 - country/environment input guardrails.
 
-Generated `.terraform` directories are excluded from source scanning so downloaded provider/module caches do not become repository posture evidence.
+Generated `.terraform` directories are excluded from source scanning so downloaded provider/module caches do not become repository posture evidence. Terraform comments are stripped before source matching while quoted strings and line positions are preserved, preventing a commented-out safe setting from satisfying an active posture fact.
 
 This is **desired-state evidence**. It is not Cloud Asset Inventory, effective IAM, or effective organization-policy evidence.
 
@@ -49,11 +49,11 @@ This is **desired-state evidence**. It is not Cloud Asset Inventory, effective I
 
 The repository collector is intentionally a focused source-pattern collector over reviewed Terraform contracts, not a general HCL interpreter or a substitute for Terraform's effective plan/state model. It is used alongside Terraform validation, Trivy IaC scanning, OPA policy-as-code, the v0.10A control catalogue, and the future live-state collector.
 
-Collector compromise tests mutate copied Terraform source and prove that relevant normalized facts change for unsafe configurations. This reduces the risk of a rule engine appearing healthy while its collector always emits safe values, but it does not turn source inspection into live cloud evidence.
+Collector/source compromise tests mutate copied Terraform source and prove that relevant normalized facts or source-contract guardrails change for unsafe configurations. This reduces the risk of a rule engine appearing healthy while its collector always emits safe values, but it does not turn source inspection into live cloud evidence.
 
 ## Governed executable rule set
 
-`security/cloud-posture-rules.json` maps executable posture rules back to the existing v0.10A control IDs. `security/cloud-posture-governance.json` now also defines the reviewed executable posture contract:
+`security/cloud-posture-rules.json` maps executable posture rules back to the existing v0.10A control IDs. `security/cloud-posture-governance.json` also defines the reviewed executable posture contract:
 
 - check-set identity;
 - required rule/control bindings;
@@ -76,29 +76,31 @@ The rule-governance negative suite also tests deletion of a rule and its governa
 
 Severity, ownership, merge-blocking policy, and the live-validation boundary therefore continue to come from the governed posture catalogue rather than being duplicated in the evaluator.
 
-The reviewed v0.10B repository check set contains **11 rules and 39 assertions**. The current repository desired state passes **11/11** with zero blocking findings. All 11 mapped checks still report that live validation is pending because repository desired state is not equivalent to deployed Google Cloud effective state.
+The reviewed v0.10B repository check set contains **11 rules and 42 assertions**. The current repository desired state passes **11/11** with zero blocking findings. All 11 mapped checks still report that live validation is pending because repository desired state is not equivalent to deployed Google Cloud effective state.
 
 A Medium posture finding, such as removal of the project ownership label in the current policy model, is reported but is not merge-blocking by default. Critical and High findings remain merge-blocking. The evaluator tests both behaviors explicitly rather than assuming every severity has the same gate policy.
 
 ## Fail-closed behavior
 
-Critical and High rule failures inherit `merge_blocking: true` from the v0.10A governance profile. The security workflow runs rule governance, repository collection, collector compromise tests, posture evaluation, evaluator decision tests, and drift tests inside `Security governance validation`, which feeds the protected-main `Security gate verdict`.
+Critical and High rule failures inherit `merge_blocking: true` from the v0.10A governance profile. The security workflow runs rule governance, repository collection, collector/source compromise tests, posture evaluation, evaluator decision tests, and drift tests inside `Security governance validation`, which feeds the protected-main `Security gate verdict`.
 
-The current evaluator decision suite covers **17 scenarios** including:
+The current evaluator decision suite covers **20 scenarios** including:
 
-- service-account key policy weakening and key creation;
+- service-account key policy weakening, override-guard removal, and key creation;
 - primitive roles and public principals;
 - Cloud SQL public networking;
 - unrestricted Cloud Run ingress and public invokers;
 - Cloud Armor removal;
-- KMS rotation/default and destruction-delay/default weakening;
+- KMS rotation/default, destruction-delay/default, and workload override-guard weakening;
 - Terraform-managed secret payloads;
 - storage public-access weakening;
 - project metadata reporting behavior;
 - centralized logging removal; and
 - country-scope weakening.
 
-The independent collector suite covers **15 scenarios**, including mutated Terraform, explicit weakening of the reviewed KMS 90-day rotation default to 60 seconds and 30-day destruction delay to one day, and exclusion of generated `.terraform` cache content. The executable rule-governance suite covers **10 scenarios** including rule deletion/remapping and governance+rule deletion together.
+The independent collector/source suite covers **21 scenarios**. It includes mutated Terraform, explicit weakening of the reviewed KMS 90-day rotation default to 60 seconds and 30-day destruction delay to one day, workload KMS override-guard removal, service-account policy override weakening, comment-spoof resistance, generated `.terraform` exclusion, and protection against setting backend request-log sampling to zero. The executable rule-governance suite covers **10 scenarios** including rule deletion/remapping and governance+rule deletion together.
+
+Operational tunables are not frozen merely because they have defaults. For example, Cloud Armor rate-limit thresholds remain tunable because the current posture claim is that throttling exists; backend log sampling, by contrast, is constrained above zero because a zero value would directly contradict the claim that backend request logging is enabled.
 
 ## Terraform drift adapter
 
@@ -124,7 +126,7 @@ The posture evaluation is also appended to the GitHub Actions job summary. The e
 
 ## Current boundary
 
-v0.10B can claim automated repository desired-state posture evaluation, fail-closed executable-rule governance, source-collector compromise testing, and tested Terraform drift decision logic.
+v0.10B can claim automated repository desired-state posture evaluation, fail-closed executable-rule governance, source/collector compromise testing, Terraform input guardrails for reviewed security invariants, and tested Terraform drift decision logic.
 
 It does **not** yet claim:
 
