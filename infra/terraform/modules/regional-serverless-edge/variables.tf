@@ -75,3 +75,42 @@ variable "backend_log_sample_rate" {
     error_message = "backend_log_sample_rate must be between 0 and 1."
   }
 }
+
+variable "cloud_armor_preview" {
+  description = "Whether Cloud Armor WAF and rate-limit rules remain in preview mode instead of enforcing their configured actions."
+  type        = bool
+  default     = true
+}
+
+variable "cloud_armor_waf_sensitivity" {
+  description = "OWASP CRS sensitivity used by the preconfigured Cloud Armor WAF rules."
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.cloud_armor_waf_sensitivity >= 1 && var.cloud_armor_waf_sensitivity <= 4
+    error_message = "cloud_armor_waf_sensitivity must be between 1 and 4."
+  }
+}
+
+variable "cloud_armor_rate_limit_count" {
+  description = "Maximum matching requests per source IP during the configured Cloud Armor rate-limit interval before throttling."
+  type        = number
+  default     = 300
+
+  validation {
+    condition     = var.cloud_armor_rate_limit_count >= 1
+    error_message = "cloud_armor_rate_limit_count must be at least 1."
+  }
+}
+
+variable "cloud_armor_rate_limit_interval_seconds" {
+  description = "Cloud Armor rate-limit interval in seconds."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = contains([1, 10, 30, 60, 120, 180, 240, 300, 600, 900, 1200, 1800, 2700, 3600], var.cloud_armor_rate_limit_interval_seconds)
+    error_message = "cloud_armor_rate_limit_interval_seconds must use a Cloud Armor-supported interval."
+  }
+}
