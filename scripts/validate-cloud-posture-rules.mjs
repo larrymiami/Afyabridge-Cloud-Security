@@ -38,6 +38,20 @@ const REVIEWED_REQUIRED_RULE_BINDINGS = new Map([
   ["POSTURE-LOC-001", "CSPM-C02"],
 ]);
 
+const REVIEWED_REQUIRED_CLAIM_SCOPES = new Map([
+  ["POSTURE-IAM-001", "repository-desired-state"],
+  ["POSTURE-IAM-002", "repository-desired-state"],
+  ["POSTURE-IAM-003", "repository-desired-state"],
+  ["POSTURE-NET-001", "repository-desired-state"],
+  ["POSTURE-EDGE-001", "repository-desired-state"],
+  ["POSTURE-KMS-001", "repository-desired-state"],
+  ["POSTURE-SEC-001", "repository-desired-state"],
+  ["POSTURE-STORAGE-001", "repository-desired-state"],
+  ["POSTURE-GOV-001", "repository-desired-state"],
+  ["POSTURE-LOG-001", "repository-desired-state"],
+  ["POSTURE-LOC-001", "repository-partial"],
+]);
+
 const REVIEWED_REQUIRED_ASSERTIONS = new Map([
   ["POSTURE-IAM-001", [
     reviewedAssertion("identity.service_account_key_creation_policy_enforced", "equals", true),
@@ -256,6 +270,11 @@ for (const [requiredId, requiredControlId] of REVIEWED_REQUIRED_RULE_BINDINGS) {
     fail(`${requiredId}: control binding must remain ${requiredControlId}, got ${rule.control_id}`);
   }
 
+  const expectedScope = REVIEWED_REQUIRED_CLAIM_SCOPES.get(requiredId);
+  if (rule.claim_scope !== expectedScope) {
+    fail(`${requiredId}: claim_scope must remain ${expectedScope}, got ${rule.claim_scope}`);
+  }
+
   const signatures = assertionSignaturesByRule.get(requiredId);
   for (const requiredSignature of REVIEWED_REQUIRED_ASSERTIONS.get(requiredId) ?? []) {
     if (!signatures.has(requiredSignature)) {
@@ -265,5 +284,5 @@ for (const [requiredId, requiredControlId] of REVIEWED_REQUIRED_RULE_BINDINGS) {
 }
 
 console.log(
-  `Cloud posture rules validated: ${ruleMap.size} rules, ${assertionCount} assertions, ${REVIEWED_REQUIRED_RULE_BINDINGS.size} anchored rule/control bindings, ${[...REVIEWED_REQUIRED_ASSERTIONS.values()].flat().length} anchored assertions.`,
+  `Cloud posture rules validated: ${ruleMap.size} rules, ${assertionCount} assertions, ${REVIEWED_REQUIRED_RULE_BINDINGS.size} anchored rule/control bindings, ${REVIEWED_REQUIRED_CLAIM_SCOPES.size} anchored claim scopes, ${[...REVIEWED_REQUIRED_ASSERTIONS.values()].flat().length} anchored assertions.`,
 );
