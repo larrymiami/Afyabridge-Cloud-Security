@@ -97,6 +97,11 @@ const cases = [
     (rules) => { rules.rules[0].claim_scope = "live-effective-state"; },
   ],
   [
+    "reviewed partial claim scope overclaimed",
+    "POSTURE-LOC-001: claim_scope must remain repository-partial",
+    (rules) => { rules.rules.find((rule) => rule.id === "POSTURE-LOC-001").claim_scope = "repository-desired-state"; },
+  ],
+  [
     "rule loses all assertions",
     "POSTURE-IAM-001.assertions must be a non-empty array",
     (rules) => { rules.rules[0].assertions = []; },
