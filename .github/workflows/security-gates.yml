@@ -224,7 +224,7 @@ jobs:
   exceptions:
     name: Security governance validation
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Check out repository
@@ -241,6 +241,12 @@ jobs:
       - name: Run cloud posture catalogue negative tests
         run: node scripts/test-cloud-posture-catalogue.mjs
 
+      - name: Validate executable cloud posture rules
+        run: node scripts/validate-cloud-posture-rules.mjs
+
+      - name: Run executable rule governance tests
+        run: node scripts/test-cloud-posture-rules.mjs
+
       - name: Collect repository cloud posture
         run: node scripts/collect-repository-cloud-posture.mjs --output "$RUNNER_TEMP/cloud-posture-snapshot.json"
 
@@ -251,7 +257,10 @@ jobs:
             --json "$RUNNER_TEMP/cloud-posture-evaluation.json" \
             --markdown "$RUNNER_TEMP/cloud-posture-evaluation.md"
 
-      - name: Run cloud posture evaluator negative tests
+      - name: Run repository posture collector compromise tests
+        run: node scripts/test-repository-posture-collector.mjs
+
+      - name: Run cloud posture evaluator decision tests
         run: node scripts/test-cloud-posture-evaluator.mjs
 
       - name: Run Terraform drift evaluator tests
