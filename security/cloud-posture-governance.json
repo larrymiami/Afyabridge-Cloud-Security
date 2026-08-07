@@ -67,6 +67,34 @@
     "terraform-plan-drift",
     "manual-review"
   ],
+  "repository_posture": {
+    "check_set_id": "AFYA-CSPM-REPOSITORY-1",
+    "required_rules": [
+      {"id": "POSTURE-IAM-001", "control_id": "IAM-C01"},
+      {"id": "POSTURE-IAM-002", "control_id": "IAM-C02"},
+      {"id": "POSTURE-IAM-003", "control_id": "CSPM-C01"},
+      {"id": "POSTURE-NET-001", "control_id": "NET-C01"},
+      {"id": "POSTURE-EDGE-001", "control_id": "NET-C04"},
+      {"id": "POSTURE-KMS-001", "control_id": "KMS-C03"},
+      {"id": "POSTURE-SEC-001", "control_id": "SEC-C02"},
+      {"id": "POSTURE-STORAGE-001", "control_id": "CSPM-C01"},
+      {"id": "POSTURE-GOV-001", "control_id": "GOV-C01"},
+      {"id": "POSTURE-LOG-001", "control_id": "MON-C01"},
+      {"id": "POSTURE-LOC-001", "control_id": "CSPM-C02"}
+    ],
+    "allowed_claim_scopes": [
+      "repository-desired-state",
+      "repository-partial"
+    ],
+    "allowed_sources": [
+      "repository"
+    ],
+    "allowed_assertion_operators": [
+      "equals",
+      "empty",
+      "contains_all"
+    ]
+  },
   "severity_policy": {
     "critical": {
       "max_remediation_hours": 24,

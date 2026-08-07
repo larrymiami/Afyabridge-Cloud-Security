@@ -39,6 +39,14 @@ variable "baseline_boolean_policies" {
     "iam.disableServiceAccountKeyCreation" = true
     "iam.disableServiceAccountKeyUpload"   = true
   }
+
+  validation {
+    condition = (
+      try(var.baseline_boolean_policies["iam.disableServiceAccountKeyCreation"], false) &&
+      try(var.baseline_boolean_policies["iam.disableServiceAccountKeyUpload"], false)
+    )
+    error_message = "The reviewed foundation requires service-account key creation and upload to remain disabled."
+  }
 }
 
 variable "projects" {

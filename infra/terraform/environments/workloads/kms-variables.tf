@@ -35,6 +35,24 @@ variable "kms_key_rings" {
 
   validation {
     condition = alltrue(flatten([
+      for ring in values(var.kms_key_rings) : [
+        for key in values(ring.keys) : key.rotation_period == "7776000s"
+      ]
+    ]))
+    error_message = "KMS keys must retain the reviewed 90-day rotation period."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for ring in values(var.kms_key_rings) : [
+        for key in values(ring.keys) : key.destroy_scheduled_duration == "2592000s"
+      ]
+    ]))
+    error_message = "KMS keys must retain the reviewed 30-day scheduled-destruction delay."
+  }
+
+  validation {
+    condition = alltrue(flatten([
       for ring in values(var.kms_key_rings) : flatten([
         for key in values(ring.keys) : [
           for member in setunion(key.encrypter_decrypter_members, key.viewer_members) :
