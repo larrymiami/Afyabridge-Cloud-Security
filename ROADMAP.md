@@ -206,18 +206,24 @@
 ## v0.9 — Software supply-chain security
 
 **Status:** In review  
-**Control state:** Implemented and enforced in repository CI; live registry and deployment trust enforcement pending
+**Control state:** Implemented and enforced in repository CI; trusted-main signing validation and live deployment trust enforcement pending
 
 - [x] Generate SBOMs and pin build dependencies
 - [x] Harden runners and separate build, deploy, and runtime identities
 - [x] Sign artifacts and generate verifiable provenance
 - [x] Define dependency risk, artifact retention, revocation, and compromise tests
 
-**Validated:** Supply chain workflow run #34 (`31175552878`) on commit `35fa8a49d6957ec5d88121cc150d4c84a8bdbd58` completed successfully. The run validated full-SHA workflow dependencies, runner and identity boundaries, weekly dependency-update policy, evidence-retention contracts, the trust-revocation registry, negative compromise scenarios, repository/image CycloneDX and SPDX SBOMs, exact-image export and SHA-256 handoff, keyless Sigstore signing, exact GitHub Actions workflow-identity verification, GitHub build provenance, GitHub SPDX SBOM attestation, pre-sign revocation enforcement, post-verification revocation enforcement, and evidence upload. Application baseline #96 and Terraform foundation #278 also succeeded for the same revision; Terraform federation plan #49 skipped as expected because live WIF repository variables are not configured.
+**Reviewer validation:** PR #15 has exercised the unprivileged supply-chain path successfully after the reviewer hardening. The current workflow validates full-SHA workflow dependencies, runner and identity boundaries, committed read-only Terraform provider locks, weekly dependency-update policy, evidence-retention contracts, the trust-revocation registry, negative compromise scenarios, repository/image CycloneDX and SPDX SBOMs, exact-image export, metadata binding, and SHA-256 build handoff. The provenance job is now intentionally skipped on pull-request runs because signing authority is restricted to a push on `refs/heads/main`.
 
-**Current boundary:** v0.9 proves repository-level build identity, artifact integrity, SBOM generation, keyless signing, attestation, dependency-governance, retention, revocation, and fail-closed compromise controls for the exported CI image archive. It does not yet claim that a live Artifact Registry digest has been signed, that Cloud Run or Binary Authorization enforces artifact trust at deployment, that Dependabot alerts/security updates are enabled by repository settings, or that Workload Identity Federation and Google Cloud deployment IAM have been live-validated. Those controls depend on the pending live v0.7 deployment path and later runtime validation.
+Earlier v0.9 development runs successfully demonstrated the keyless Cosign and GitHub artifact-attestation mechanics on a pull-request merge ref. The reviewer pass identified that behavior as an invalid trust boundary: pull-request-controlled workflow code could obtain a legitimate signing identity for `refs/pull/.../merge`. The implementation was corrected so the signing job can run only for `push` events on `refs/heads/main`, the Cosign certificate identity is fixed to the main workflow identity, and GitHub attestation verification is constrained to the exact source ref and source commit. The final trusted-main signing run therefore remains intentionally pending until repository governance for `main` is enabled and the reviewed PR reaches `main`.
 
-**Primary outcome:** The CI supply chain can establish what was built, from which source and workflow identity, verify the exact artifact and its SBOM/provenance, and make an explicit current-trust decision that can fail closed when a source, artifact, or signer identity is revoked.
+The reviewer pass also corrected empty Cosign verification evidence capture, upgraded deprecated GitHub Action runtimes, hardened revocation-date validation, committed provider lockfiles for every Terraform root validated by CI, and made Terraform initialization consume those lockfiles read-only. Negative tests now fail closed if these trust boundaries are weakened.
+
+**Merge prerequisite:** `main` is the signing trust anchor and must be protected against unreviewed direct changes before the trusted-main signer is considered operational. Branch/ruleset configuration is an operational repository setting and is not proven by workflow source code.
+
+**Current boundary:** v0.9 proves repository-level build identity, dependency/provider integrity controls, artifact integrity, SBOM generation, signing/attestation mechanics, dependency governance, retention, revocation, and fail-closed compromise controls for the exported CI image archive. It does not yet claim a successful trusted-main signature from the hardened workflow, a signed live Artifact Registry digest, Cloud Run or Binary Authorization deployment-time artifact enforcement, Dependabot alert/security-update enablement through repository settings, live Workload Identity Federation, or live Google Cloud deployment IAM. Those validations remain after repository protection/merge and within the pending live v0.7 and later runtime work.
+
+**Primary outcome:** The CI supply chain can establish what was built and from which source, preserve an explicit unprivileged build-to-sign boundary, verify immutable dependency inputs, and make an explicit current-trust decision. Once a reviewed revision reaches protected `main`, the dedicated provenance job is designed to sign and attest that exact artifact under the fixed trusted-main workflow identity and verify it against source/ref and revocation policy.
 
 ---
 
