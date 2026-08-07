@@ -23,7 +23,7 @@
 | v0.6 | Application security baseline | **Completed** |
 | v0.7 | Infrastructure as code and secure GCP deployment | **In review** |
 | v0.8 | Shift-left CI/CD security pipeline | **In review** |
-| v0.9 | Software supply-chain security | **In review** |
+| v0.9 | Software supply-chain security | **Completed** |
 | v0.10 | Cloud security posture and governance | **Planned** |
 | v0.11 | Shift-right validation and runtime security | **Planned** |
 | v0.12 | Incident response and recovery | **Planned** |
@@ -205,25 +205,29 @@
 
 ## v0.9 — Software supply-chain security
 
-**Status:** In review  
-**Control state:** Implemented and enforced in repository CI; trusted-main signing validation and live deployment trust enforcement pending
+**Status:** Completed  
+**Control state:** Implemented and validated in repository CI; live registry and deployment trust enforcement pending  
+**Merged:** PR #15  
+**Validated:** Supply chain workflow run #64 (`31180475121`) on merge commit `e7cea0c88305a0103658734191ea4394ab668fe5`
 
 - [x] Generate SBOMs and pin build dependencies
 - [x] Harden runners and separate build, deploy, and runtime identities
 - [x] Sign artifacts and generate verifiable provenance
 - [x] Define dependency risk, artifact retention, revocation, and compromise tests
 
-**Reviewer validation:** PR #15 has exercised the unprivileged supply-chain path successfully after the reviewer hardening. The current workflow validates full-SHA workflow dependencies, runner and identity boundaries, committed read-only Terraform provider locks, weekly dependency-update policy, evidence-retention contracts, the trust-revocation registry, negative compromise scenarios, repository/image CycloneDX and SPDX SBOMs, exact-image export, metadata binding, and SHA-256 build handoff. The provenance job is now intentionally skipped on pull-request runs because signing authority is restricted to a push on `refs/heads/main`.
+**Reviewer validation:** PR #15 completed a dedicated security reviewer pass before merge. The pass found and corrected pull-request-controlled signing, an evidence-capture defect in Cosign verification, mutable Terraform provider resolution in two roots, and a branch-protection status-check design that could otherwise report evidence success after an upstream scanner failure. The final PR revision passed the application baseline, Terraform foundation, security gates, supply-chain validation, governance validation, revocation validation, and negative compromise tests. Pull-request runs intentionally exercised only the unprivileged build/SBOM path after the signing trust boundary was hardened.
 
-Earlier v0.9 development runs successfully demonstrated the keyless Cosign and GitHub artifact-attestation mechanics on a pull-request merge ref. The reviewer pass identified that behavior as an invalid trust boundary: pull-request-controlled workflow code could obtain a legitimate signing identity for `refs/pull/.../merge`. The implementation was corrected so the signing job can run only for `push` events on `refs/heads/main`, the Cosign certificate identity is fixed to the main workflow identity, and GitHub attestation verification is constrained to the exact source ref and source commit. The final trusted-main signing run therefore remains intentionally pending until repository governance for `main` is enabled and the reviewed PR reaches `main`.
+**Repository governance:** The `Protect main` repository ruleset is active for the default branch. It requires pull requests, resolved review conversations, the fail-closed `Security gate verdict` check, and an up-to-date branch before merge; it blocks deletion and non-fast-forward/force pushes and has no bypass actors. This protects `refs/heads/main`, which is the fixed signing trust anchor.
 
-The reviewer pass also corrected empty Cosign verification evidence capture, upgraded deprecated GitHub Action runtimes, hardened revocation-date validation, committed provider lockfiles for every Terraform root validated by CI, and made Terraform initialization consume those lockfiles read-only. Negative tests now fail closed if these trust boundaries are weakened.
+**Trusted-main validation:** After PR #15 merged, Supply chain run #64 executed on `refs/heads/main` and successfully completed both the unprivileged build/SBOM job and the dedicated signing/provenance job. The signing job checked out the exact merge commit `e7cea0c88305a0103658734191ea4394ab668fe5`, verified the checksummed build handoff and metadata binding, and allowed the source commit, exact artifact digest `sha256:fd9d5c9dbea44ee3bd81f62eb6899130d3fd4da51f08bd4451ba3d043083bec9`, and fixed workflow identity through the revocation policy before signing.
 
-**Merge prerequisite:** `main` is the signing trust anchor and must be protected against unreviewed direct changes before the trusted-main signer is considered operational. Branch/ruleset configuration is an operational repository setting and is not proven by workflow source code.
+The exact exported image archive was then signed keylessly with Sigstore Cosign using the GitHub Actions OIDC identity `https://github.com/larrymiami/Afyabridge-Cloud-Security/.github/workflows/supply-chain.yml@refs/heads/main`. `cosign verify-blob` returned `Verified OK` against that exact certificate identity and the GitHub Actions OIDC issuer. GitHub build-provenance and SPDX SBOM attestations were created and verified with the signer workflow, `refs/heads/main` source ref, exact merge-commit source digest, and self-hosted-runner provenance denial. The same three trust subjects were re-checked against the revocation registry after cryptographic verification and remained allowed.
 
-**Current boundary:** v0.9 proves repository-level build identity, dependency/provider integrity controls, artifact integrity, SBOM generation, signing/attestation mechanics, dependency governance, retention, revocation, and fail-closed compromise controls for the exported CI image archive. It does not yet claim a successful trusted-main signature from the hardened workflow, a signed live Artifact Registry digest, Cloud Run or Binary Authorization deployment-time artifact enforcement, Dependabot alert/security-update enablement through repository settings, live Workload Identity Federation, or live Google Cloud deployment IAM. Those validations remain after repository protection/merge and within the pending live v0.7 and later runtime work.
+**Evidence:** Run #64 retained the unsigned build/SBOM package for 30 days and the signed provenance package for 90 days. The signed package contains the Cosign Sigstore bundle, non-empty Cosign verification output, GitHub provenance and SBOM bundles, their verification JSON, build metadata, image SPDX SBOM, pre-sign and post-verification revocation decisions, and SHA-256 evidence manifests. GitHub also uploaded the attestations to the repository and Sigstore Rekor transparency log.
 
-**Primary outcome:** The CI supply chain can establish what was built and from which source, preserve an explicit unprivileged build-to-sign boundary, verify immutable dependency inputs, and make an explicit current-trust decision. Once a reviewed revision reaches protected `main`, the dedicated provenance job is designed to sign and attest that exact artifact under the fixed trusted-main workflow identity and verify it against source/ref and revocation policy.
+**Current boundary:** v0.9 now proves repository-level build identity, dependency/provider integrity controls, artifact integrity, SBOM generation, protected-main build/signing separation, keyless signing, source/ref-bound provenance and SBOM verification, dependency governance, evidence retention, revocation, and fail-closed compromise controls for the exported CI image archive. It does **not** claim that a live Artifact Registry image digest has been signed, that Cloud Run or Binary Authorization enforces artifact trust at deployment, that Dependabot alerts/security updates are enabled solely by the committed version-update policy, or that Workload Identity Federation and Google Cloud deployment IAM have been live-validated. Those controls remain tied to the pending live v0.7 deployment path and later runtime validation.
+
+**Primary outcome:** The CI supply chain establishes what was built, from which protected source and workflow identity, verifies the exact artifact and its SBOM/provenance, and makes an explicit current-trust decision that fails closed when a source, artifact, or signer identity is revoked.
 
 ---
 
