@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import {
   validateCommittedHistoryBoundary,
   validateReportingSeverityBaseline,
+  validateReportingExceptionBaseline,
 } from "./validate-posture-reporting.mjs";
 
 const governance = JSON.parse(await readFile("security/cloud-posture-governance.json", "utf8"));
@@ -11,6 +12,10 @@ const catalogue = JSON.parse(await readFile("security/cloud-posture-controls.jso
 let scenarios = 0;
 function expect(condition, name) {
   if (!condition) throw new Error(`FAIL ${name}`);
+  scenarios += 1;
+  console.log(`PASS ${name}`);
+}
+function pass(name) {
   scenarios += 1;
   console.log(`PASS ${name}`);
 }
@@ -43,7 +48,7 @@ try {
 expect(rejectedHistory, "deny: repository PR cannot seed invented trend history");
 
 validateReportingSeverityBaseline({ catalogue });
-passSeverity("allow: reviewed posture severities remain anchored");
+pass("allow: reviewed posture severities remain anchored");
 
 const downgradedHigh = structuredClone(catalogue);
 downgradedHigh.controls.find((control) => control.id === "MON-C01").severity = "medium";
@@ -65,9 +70,35 @@ try {
 }
 expect(rejectedCriticalDowngrade, "deny: critical control severity cannot be silently reduced");
 
-function passSeverity(name) {
-  scenarios += 1;
-  console.log(`PASS ${name}`);
+validateReportingExceptionBaseline({ catalogue });
+pass("allow: reviewed exceptionability and maximum lifetimes remain anchored");
+
+const exceptionEnabled = structuredClone(catalogue);
+exceptionEnabled.controls.find((control) => control.id === "NET-C01").exception = {
+  allowed: true,
+  maximum_days: 30,
+};
+let rejectedExceptionEnable = false;
+try {
+  validateReportingExceptionBaseline({ catalogue: exceptionEnabled });
+} catch {
+  rejectedExceptionEnable = true;
 }
+expect(rejectedExceptionEnable, "deny: non-exceptionable critical control cannot become risk-acceptable");
+
+const exceptionExtended = structuredClone(catalogue);
+exceptionExtended.controls.find((control) => control.id === "MON-C01").exception.maximum_days = 90;
+let rejectedExceptionExtension = false;
+try {
+  validateReportingExceptionBaseline({ catalogue: exceptionExtended });
+} catch {
+  rejectedExceptionExtension = true;
+}
+expect(rejectedExceptionExtension, "deny: reviewed high-severity exception lifetime cannot be extended");
+
+const stricterException = structuredClone(catalogue);
+stricterException.controls.find((control) => control.id === "KMS-C01").exception = { allowed: false };
+validateReportingExceptionBaseline({ catalogue: stricterException });
+pass("allow: making an exceptionable control stricter remains fail-closed");
 
 console.log(`Posture reporting governance-boundary controls validated: ${scenarios} scenarios passed.`);
