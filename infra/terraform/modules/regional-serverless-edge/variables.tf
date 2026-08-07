@@ -71,8 +71,8 @@ variable "backend_log_sample_rate" {
   default     = 1
 
   validation {
-    condition     = var.backend_log_sample_rate >= 0 && var.backend_log_sample_rate <= 1
-    error_message = "backend_log_sample_rate must be between 0 and 1."
+    condition     = var.backend_log_sample_rate > 0 && var.backend_log_sample_rate <= 1
+    error_message = "backend_log_sample_rate must be greater than 0 and no more than 1 so backend request logging cannot be effectively disabled."
   }
 }
 
