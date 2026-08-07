@@ -12,20 +12,20 @@ variable "default_region" {
 variable "country_edges" {
   description = "Country-isolated regional public edge definitions keyed exactly by ke, gh, and za."
   type = map(object({
-    edge_project_id                       = string
-    network_project_id                    = string
-    region                                = string
-    network_id                            = string
-    proxy_only_subnet_name                = string
-    proxy_only_subnet_cidr                = string
-    cloud_run_service_name                = string
-    name_prefix                           = string
-    network_tier                          = optional(string, "STANDARD")
-    backend_timeout_seconds               = optional(number, 30)
-    backend_log_sample_rate               = optional(number, 1)
-    cloud_armor_preview                   = optional(bool, true)
-    cloud_armor_waf_sensitivity           = optional(number, 1)
-    cloud_armor_rate_limit_count          = optional(number, 300)
+    edge_project_id                         = string
+    network_project_id                      = string
+    region                                  = string
+    network_id                              = string
+    proxy_only_subnet_name                  = string
+    proxy_only_subnet_cidr                  = string
+    cloud_run_service_name                  = string
+    name_prefix                             = string
+    network_tier                            = optional(string, "STANDARD")
+    backend_timeout_seconds                 = optional(number, 30)
+    backend_log_sample_rate                 = optional(number, 1)
+    cloud_armor_preview                     = optional(bool, true)
+    cloud_armor_waf_sensitivity             = optional(number, 1)
+    cloud_armor_rate_limit_count            = optional(number, 300)
     cloud_armor_rate_limit_interval_seconds = optional(number, 60)
   }))
 
