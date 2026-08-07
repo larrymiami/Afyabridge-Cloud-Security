@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -43,19 +43,21 @@ async function expectFail(label, operation) {
 
 async function createFixture() {
   const fixture = await mkdtemp(join(tmpdir(), "afyabridge-supply-chain-"));
-  await cp(join(root, ".github"), join(fixture, ".github"), { recursive: true });
-  await cp(join(root, "apps/web/Dockerfile"), join(fixture, "apps/web/Dockerfile"), {
+  await mkdir(join(fixture, "apps/web"), { recursive: true });
+  await mkdir(join(fixture, "infra/terraform/modules/cloud-run-service"), {
     recursive: true,
   });
+  await mkdir(join(fixture, "security"), { recursive: true });
+
+  await cp(join(root, ".github"), join(fixture, ".github"), { recursive: true });
+  await cp(join(root, "apps/web/Dockerfile"), join(fixture, "apps/web/Dockerfile"));
   await cp(
     join(root, "infra/terraform/modules/cloud-run-service/main.tf"),
     join(fixture, "infra/terraform/modules/cloud-run-service/main.tf"),
-    { recursive: true },
   );
   await cp(
     join(root, "security/supply-chain-revocations.json"),
     join(fixture, "security/supply-chain-revocations.json"),
-    { recursive: true },
   );
   return fixture;
 }
@@ -155,7 +157,11 @@ const mutations = [
     label: "GitHub Actions dependency monitoring is removed",
     validator: validateGovernanceFixture,
     path: ".github/dependabot.yml",
-    transform: (text) => text.replace("package-ecosystem: github-actions", "package-ecosystem: disabled-actions"),
+    transform: (text) =>
+      text.replace(
+        "package-ecosystem: github-actions",
+        "package-ecosystem: disabled-actions",
+      ),
   },
 ];
 
@@ -184,10 +190,12 @@ try {
             id: "SC-REV-2026-001",
             kind: "source-commit",
             value: revokedSource,
-            reason: "Synthetic compromised source used to prove fail-closed revocation behavior.",
+            reason:
+              "Synthetic compromised source used to prove fail-closed revocation behavior.",
             revoked_on: "2026-08-07",
             owner: "security",
-            tracking_url: "https://github.com/larrymiami/Afyabridge-Cloud-Security/issues/1",
+            tracking_url:
+              "https://github.com/larrymiami/Afyabridge-Cloud-Security/issues/1",
           },
         ],
       },
@@ -216,4 +224,6 @@ try {
   await rm(revocationFixture, { recursive: true, force: true });
 }
 
-console.log(`Supply-chain compromise controls validated: ${mutations.length + 2} scenarios passed.`);
+console.log(
+  `Supply-chain compromise controls validated: ${mutations.length + 2} scenarios passed.`,
+);
