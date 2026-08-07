@@ -44,17 +44,13 @@ async function expectFail(label, operation) {
 async function createFixture() {
   const fixture = await mkdtemp(join(tmpdir(), "afyabridge-supply-chain-"));
   await mkdir(join(fixture, "apps/web"), { recursive: true });
-  await mkdir(join(fixture, "infra/terraform/modules/cloud-run-service"), {
-    recursive: true,
-  });
   await mkdir(join(fixture, "security"), { recursive: true });
 
   await cp(join(root, ".github"), join(fixture, ".github"), { recursive: true });
+  await cp(join(root, "infra/terraform"), join(fixture, "infra/terraform"), {
+    recursive: true,
+  });
   await cp(join(root, "apps/web/Dockerfile"), join(fixture, "apps/web/Dockerfile"));
-  await cp(
-    join(root, "infra/terraform/modules/cloud-run-service/main.tf"),
-    join(fixture, "infra/terraform/modules/cloud-run-service/main.tf"),
-  );
   await cp(
     join(root, "security/supply-chain-revocations.json"),
     join(fixture, "security/supply-chain-revocations.json"),
@@ -180,6 +176,19 @@ const mutations = [
         "    service_account = google_service_account.runtime.email",
         "    service_account = var.project_id",
       ),
+  },
+  {
+    label: "Terraform CI can mutate provider selections",
+    validator: validateGovernanceFixture,
+    path: ".github/workflows/terraform-foundation.yml",
+    transform: (text) => text.replace(" -lockfile=readonly", ""),
+  },
+  {
+    label: "Terraform provider lock stops recording an exact version",
+    validator: validateGovernanceFixture,
+    path: "infra/terraform/environments/edge/.terraform.lock.hcl",
+    transform: (text) =>
+      text.replace('  version     = "7.41.0"', '  version     = "~> 7.41.0"'),
   },
   {
     label: "signed provenance evidence retention is shortened",
