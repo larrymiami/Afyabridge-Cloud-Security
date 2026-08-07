@@ -24,19 +24,30 @@ RUN pnpm --filter @afyabridge/web build
 
 FROM node:22.14.0-alpine AS runtime
 
-ENV PNPM_HOME=/pnpm
-ENV PATH=$PNPM_HOME:$PATH
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
-RUN corepack enable && corepack prepare pnpm@10.14.0 --activate
+RUN apk upgrade --no-cache \
+  && rm -rf \
+    /opt/yarn* \
+    /root/.cache \
+    /usr/local/lib/node_modules/npm \
+    /usr/local/lib/node_modules/corepack \
+  && rm -f \
+    /usr/local/bin/npm \
+    /usr/local/bin/npx \
+    /usr/local/bin/corepack \
+    /usr/local/bin/yarn \
+    /usr/local/bin/yarnpkg
 
 WORKDIR /app
 
-COPY --from=build --chown=node:node /app /app
+COPY --from=build --chown=node:node /app/apps/web/.next/standalone ./
+COPY --from=build --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
 
 USER node
 EXPOSE 3000
 
-CMD ["pnpm", "--filter", "@afyabridge/web", "start"]
+CMD ["node", "apps/web/server.js"]
