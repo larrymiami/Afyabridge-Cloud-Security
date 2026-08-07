@@ -166,7 +166,7 @@
 - [x] Implement centralized Cloud Logging buckets and non-intercepting organization sinks with country-aware routing, retention controls, and least-privilege sink-writer IAM
 - [x] Implement reusable Cloud Monitoring notification-channel and alert-policy controls with initial Cloud Run, Cloud SQL, and logging-pipeline policies
 - [x] Implement log-based security-detection metrics and disabled-by-default alert policies for IAM, public access, logging changes, KMS changes, and Secret Manager denial
-- [x] Add centralized-observability architecture documentation, detection catalogue, response runbook, and v0.7F static-validation evidence
+- [x] Add centralized-observability architecture, detection catalogue, response runbook, and v0.7F static-validation evidence
 - [x] Implement country-scoped regional external Application Load Balancers with Cloud Run serverless NEG backends, dedicated proxy-only subnets, and reserved regional public addresses
 - [x] Implement regional Cloud Armor policies with preview-first OWASP CRS 4.22 WAF rules, per-IP throttling, verbose logging, and backend attachment
 - [x] Implement country-scoped public DNS contracts, regional DNS authorizations, Google-managed certificates, TLS 1.2+ HTTPS listeners, and HTTP-to-HTTPS redirects
