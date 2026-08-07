@@ -3,7 +3,7 @@ package afyabridge.ci
 import rego.v1
 
 test_compliant_repository_has_no_denies if {
-	count(deny with input as {
+	violations := deny with input as {
 		"workflows": [{
 			"path": ".github/workflows/security-gates.yml",
 			"pull_request_target": false,
@@ -27,7 +27,8 @@ test_compliant_repository_has_no_denies if {
 			"public_principal_assignments": [],
 			"authoritative_iam_policy_resources": [],
 		}],
-	}) == 0
+	}
+	count(violations) == 0
 }
 
 test_pull_request_target_is_denied if {
