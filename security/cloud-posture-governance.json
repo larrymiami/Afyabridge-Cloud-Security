@@ -116,8 +116,13 @@
   "exception_policy": {
     "registry": "security/exceptions.json",
     "maximum_days": 90,
+    "allowed_statuses": [
+      "active",
+      "historical"
+    ],
     "required_fields": [
       "id",
+      "status",
       "scope",
       "rationale",
       "compensating_controls",
@@ -126,7 +131,10 @@
       "tracking_url",
       "created_on",
       "expires_on"
-    ]
+    ],
+    "historical_status": {
+      "requires_retired_on": true
+    }
   },
   "finding_lifecycle": {
     "registry": "security/posture-findings.json",
@@ -189,6 +197,7 @@
       "closed": []
     },
     "risk_acceptance": {
+      "exception_binding": "history-event",
       "requires_active_exception": true,
       "allowed_exception_gates": [
         "cloud-posture",
