@@ -144,6 +144,10 @@ for (const actor of ["security-automation", ...approvedOwners]) {
   if (!allowedActors.has(actor)) fail(`finding_lifecycle.allowed_actors must include ${actor}`);
 }
 
+const riskPolicy = lifecycle.risk_acceptance ?? {};
+if (riskPolicy.exception_binding !== "history-event") {
+  fail("finding_lifecycle.risk_acceptance.exception_binding must remain history-event");
+}
 const resolutionPolicy = lifecycle.resolution ?? {};
 const allowedVerificationStatuses = new Set(resolutionPolicy.allowed_verification_statuses ?? []);
 for (const status of ["pending", "failed", "passed"]) {
@@ -168,9 +172,9 @@ for (const exception of exceptions.exceptions) {
 }
 const severityPolicy = governance.severity_policy ?? {};
 const transitions = lifecycle.allowed_transitions ?? {};
-const allowedExceptionGates = new Set(lifecycle.risk_acceptance?.allowed_exception_gates ?? []);
-const exceptionGateBySource = lifecycle.risk_acceptance?.exception_gate_by_source ?? {};
-const requireActiveException = lifecycle.risk_acceptance?.requires_active_exception === true;
+const allowedExceptionGates = new Set(riskPolicy.allowed_exception_gates ?? []);
+const exceptionGateBySource = riskPolicy.exception_gate_by_source ?? {};
+const requireActiveException = riskPolicy.requires_active_exception === true;
 const requireIndependentVerifier = lifecycle.closure?.require_independent_verifier === true;
 const minimumClosureEvidence = lifecycle.closure?.minimum_evidence_items ?? 1;
 
@@ -202,9 +206,16 @@ function validateVerifier(finding, attempt, label) {
   return verifiedAt;
 }
 
-function validateLinkedException(finding, exceptionId, riskAcceptedEvents, requireActiveNow) {
+function validateRiskAcceptanceException(finding, event, requireActiveNow) {
+  const exceptionId = event.exception_id;
+  if (!/^SEC-EX-\d{4}-\d{3}$/.test(exceptionId ?? "")) {
+    fail(`${finding.id}: risk-accepted history event requires exception_id`);
+  }
   const exception = exceptionMap.get(exceptionId);
   if (!exception) fail(`${finding.id}: exception ${exceptionId} does not exist`);
+  if (!new Set(["active", "historical"]).has(exception.status)) {
+    fail(`${finding.id}: exception ${exceptionId} status must be active or historical`);
+  }
 
   const expectedGate = exceptionGateBySource[finding.source];
   if (!allowedExceptionGates.has(exception.gate)) {
@@ -250,15 +261,27 @@ function validateLinkedException(finding, exceptionId, riskAcceptedEvents, requi
   }
   if (created > asOfDate) fail(`${finding.id}: exception ${exceptionId} cannot be created in the future`);
 
-  for (const event of riskAcceptedEvents) {
-    const acceptedDate = utcDateOnly(event.atDate);
-    if (acceptedDate < created || acceptedDate > expires) {
-      fail(`${finding.id}: exception ${exceptionId} was not active when risk was accepted at ${event.at}`);
-    }
+  let authorizationEnd = expires;
+  if (exception.status === "historical") {
+    const retired = parseDate(exception.retired_on, `${finding.id}: exception ${exceptionId} retired_on`);
+    if (retired < created) fail(`${finding.id}: exception ${exceptionId} retired_on cannot precede created_on`);
+    if (retired > expires) fail(`${finding.id}: exception ${exceptionId} retired_on cannot follow expires_on`);
+    if (retired > asOfDate) fail(`${finding.id}: exception ${exceptionId} retired_on cannot be in the future`);
+    authorizationEnd = retired;
+  } else if (exception.retired_on !== undefined) {
+    fail(`${finding.id}: active exception ${exceptionId} must not include retired_on`);
   }
 
-  if (requireActiveNow && expires < asOfDate) {
-    fail(`${finding.id}: exception ${exceptionId} expired on ${exception.expires_on}`);
+  const acceptedDate = utcDateOnly(event.atDate);
+  if (acceptedDate < created || acceptedDate > authorizationEnd) {
+    fail(`${finding.id}: exception ${exceptionId} was not active when risk was accepted at ${event.at}`);
+  }
+
+  if (requireActiveNow) {
+    if (exception.status !== "active") {
+      fail(`${finding.id}: current risk acceptance requires active exception ${exceptionId}`);
+    }
+    if (expires < asOfDate) fail(`${finding.id}: exception ${exceptionId} expired on ${exception.expires_on}`);
   }
 }
 
@@ -284,6 +307,7 @@ for (const finding of registry.findings) {
   if (!allowedStatuses.has(finding.status)) fail(`${id}: unsupported status ${finding.status ?? "missing"}`);
   if (!validTrackingUrl(finding.tracking_url)) fail(`${id}: tracking_url must reference a GitHub issue or pull request`);
   if (finding.resolution !== undefined) fail(`${id}: legacy resolution field is not allowed; use resolution_attempts`);
+  if (finding.exception_id !== undefined) fail(`${id}: legacy top-level exception_id is not allowed; bind exceptions to risk-accepted history events`);
 
   const detected = parseTimestamp(finding.detected_at, `${id}.detected_at`);
   if (detected > asOf) fail(`${id}: detected_at cannot be in the future`);
@@ -334,8 +358,13 @@ for (const finding of registry.findings) {
       if (!allowedNext.includes(event.status)) fail(`${id}: transition ${previousStatus} -> ${event.status} is not allowed`);
     }
     if (event.status === "risk-accepted") {
+      if (!/^SEC-EX-\d{4}-\d{3}$/.test(event.exception_id ?? "")) {
+        fail(`${id}: risk-accepted history event requires exception_id`);
+      }
       if (eventAt > due) fail(`${id}: risk acceptance cannot be approved after remediation SLA ${finding.remediation_due_at}`);
       riskAcceptedEvents.push({ ...event, atDate: eventAt, index });
+    } else if (event.exception_id !== undefined) {
+      fail(`${id}.history[${index}]: exception_id is allowed only on risk-accepted events`);
     }
     if (event.status === "resolved") resolvedEvents.push({ ...event, atDate: eventAt, index });
     if (event.status === "closed") closedEvents.push({ ...event, atDate: eventAt, index });
@@ -344,22 +373,9 @@ for (const finding of registry.findings) {
   }
   if (previousStatus !== finding.status) fail(`${id}: final history status must match current status ${finding.status}`);
 
-  if (riskAcceptedEvents.length > 0 && !finding.exception_id) {
-    fail(`${id}: finding history contains risk acceptance but exception_id is missing`);
-  }
-  if (finding.exception_id && riskAcceptedEvents.length === 0) {
-    fail(`${id}: exception_id requires at least one risk-accepted history event`);
-  }
-  if (finding.status === "risk-accepted" && requireActiveException && !finding.exception_id) {
-    fail(`${id}: risk-accepted finding requires exception_id`);
-  }
-  if (finding.exception_id) {
-    validateLinkedException(
-      finding,
-      finding.exception_id,
-      riskAcceptedEvents,
-      finding.status === "risk-accepted" && requireActiveException,
-    );
+  for (const event of riskAcceptedEvents) {
+    const currentAcceptance = finding.status === "risk-accepted" && event.index === finding.history.length - 1;
+    validateRiskAcceptanceException(finding, event, currentAcceptance && requireActiveException);
   }
 
   if (["open", "in-remediation"].includes(finding.status) && asOf > due) {
