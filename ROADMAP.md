@@ -22,9 +22,9 @@
 | v0.5 | Data protection and encryption architecture | **Completed** |
 | v0.6 | Application security baseline | **Completed** |
 | v0.7 | Infrastructure as code and secure GCP deployment | **In review** |
-| v0.8 | Shift-left CI/CD security pipeline | **In review** |
+| v0.8 | Shift-left CI/CD security pipeline | **Completed** |
 | v0.9 | Software supply-chain security | **Completed** |
-| v0.10 | Cloud security posture and governance | **Planned** |
+| v0.10 | Cloud security posture and governance | **In review** |
 | v0.11 | Shift-right validation and runtime security | **Planned** |
 | v0.12 | Incident response and recovery | **Planned** |
 | v1.0 | Multi-country production-style capstone | **Not started** |
@@ -187,17 +187,18 @@
 
 ## v0.8 — Shift-left CI/CD security pipeline
 
-**Status:** In review  
-**Control state:** Implemented and enforced in repository CI; live deployment and runtime validation remain out of scope
+**Status:** Completed  
+**Control state:** Implemented and enforced in repository CI; live deployment and runtime validation remain out of scope  
+**Merged:** PR #14
 
 - [x] Add secret, static, dependency, license, IaC, container, and package scanning
 - [x] Add API, schema, and policy-as-code checks
 - [x] Create severity-based security quality gates and exception workflows
 - [x] Publish machine-readable and human-readable evidence
 
-**Validated:** Security gates workflow run #25 (`31167508061`) on commit `1cfb3f85e29548fb29ffed938660593ac1e47e96` completed successfully. The run validated full-history secret scanning, dependency and license review, CodeQL analysis, Terraform and package scanning, hardened container build and image scanning, OpenAPI contract drift checks, OPA/Rego policy evaluation, security-exception validation, and generation/upload of JSON and Markdown security evidence.
+**Validated:** Security gates workflow run #25 (`31167508061`) on commit `1cfb3f85e29548fb29ffed938660593ac1e47e96` completed successfully. The run validated full-history secret scanning, dependency and license review, CodeQL analysis, Terraform and package scanning, hardened container build and image scanning, OpenAPI contract drift checks, OPA/Rego policy evaluation, security-exception validation, and generation/upload of JSON and Markdown security evidence. The later v0.9 reviewer hardening added the fail-closed `Security gate verdict`, which is now the protected-main required status check rather than treating evidence generation itself as a merge verdict.
 
-**Current boundary:** v0.8 validates the configured repository and pull-request controls only. CodeQL analysis results still depend on repository code-scanning and merge-protection settings for alert-based merge blocking. Trivy ignores unfixed vulnerabilities by policy and blocks configured high/critical findings where remediation is available. The exception registry does not automatically suppress scanners. No live Google Cloud deployment, runtime attack simulation, dynamic API security testing, or production control effectiveness is claimed by this milestone.
+**Current boundary:** v0.8 validates the configured repository and pull-request controls only. CodeQL analysis results still depend on repository code-scanning settings for alert publication and visibility. Trivy ignores unfixed vulnerabilities by policy and blocks configured high/critical findings where remediation is available. The exception registry does not automatically suppress scanners. No live Google Cloud deployment, runtime attack simulation, dynamic API security testing, or production control effectiveness is claimed by this milestone.
 
 **Primary outcome:** Security checks run before deployment, block configured unacceptable changes, require reviewed time-bounded handling for exceptions, and produce auditable workflow evidence.
 
@@ -233,13 +234,22 @@ The exact exported image archive was then signed keylessly with Sigstore Cosign 
 
 ## v0.10 — Cloud security posture and governance
 
-**Status:** Planned  
-**Target control state:** Implemented and operational
+**Status:** In review  
+**Control state:** v0.10A implemented and CI-enforced; live cloud posture and later governance/reporting slices pending
 
-- [ ] Configure cloud posture, organization-policy, asset, IAM, network, DNS, logging, encryption, and data-location checks
-- [ ] Create governance, ownership, risk, exception, compensating-control, evidence, metrics, and reporting processes
+- [x] v0.10A — establish a machine-readable cloud posture baseline tied to the authoritative security-control matrix
+- [x] v0.10A — define approved ownership, scope, severity/remediation, exception, validation-state, and live-cloud-source governance
+- [x] v0.10A — add executable catalogue/reference validation and fail-closed negative posture tests
+- [x] v0.10A — integrate posture validation into the protected-main `Security gate verdict` path
+- [ ] v0.10B — implement automated repository posture, asset/effective-state, and drift checks for IAM, network, DNS, logging, encryption, and data location
+- [ ] v0.10C — implement finding ownership, remediation SLA, exception/compensating-control, expiry, and closure-evidence lifecycle
+- [ ] v0.10D — produce machine-readable posture findings and human-readable posture metrics, summaries, trends, and threshold decisions
 
-**Primary outcome:** Architecture and implemented controls remain observable, governed, and traceable over time.
+**Validated:** Security gates workflow run #103 (`31182652111`) on implementation commit `0e066b266c1ca98f8133fb369938074f8f1adcee` successfully validated the 18-control posture profile across nine categories, the governance contract, implementation-reference integrity, 12 positive/negative posture scenarios, the existing scanner/policy suite, evidence generation, and the required `Security gate verdict`. Application baseline run #133 succeeded for the same revision. Supply chain run #73 successfully completed its unprivileged build/evidence path; signing remained skipped as designed for a pull request. Detailed evidence is recorded in `docs/evidence/v0.10a-validation.md`.
+
+**Current boundary:** v0.10A proves that AfyaBridge has a version-controlled, machine-readable posture baseline tied to existing control IDs and that CI fails closed when required coverage, ownership, approved scope, implementation evidence, severity governance, exception constraints, or the live-validation boundary is weakened. Cloud Asset Inventory and Security Command Center remain explicitly `planned`. No live Google Cloud inventory, effective organization-policy/IAM measurement, drift event, live posture finding, remediation lifecycle, or operational posture dashboard is claimed yet. Fifteen of the eighteen v0.10A controls explicitly retain pending live Google Cloud validation.
+
+**Primary outcome:** Architecture and implemented controls now have a governed posture source of truth that distinguishes repository/CI evidence from future live-cloud evidence and can detect governance drift before deployment. Later v0.10 slices will evaluate cloud state, manage findings, and report posture over time.
 
 ---
 

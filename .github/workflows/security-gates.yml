@@ -222,9 +222,9 @@ jobs:
             'data.afyabridge.ci.deny[_]'
 
   exceptions:
-    name: Security exception validation
+    name: Security governance validation
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Check out repository
@@ -234,6 +234,12 @@ jobs:
 
       - name: Validate exception registry
         run: node scripts/validate-security-exceptions.mjs security/exceptions.json
+
+      - name: Validate cloud posture catalogue
+        run: node scripts/validate-cloud-posture-catalogue.mjs
+
+      - name: Run cloud posture negative tests
+        run: node scripts/test-cloud-posture-catalogue.mjs
 
   evidence:
     name: Security gate evidence

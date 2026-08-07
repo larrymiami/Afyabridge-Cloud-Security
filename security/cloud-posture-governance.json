@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "profile_id": "AFYA-CSPM-BASELINE-1",
+  "profile_stage": "repository-baseline",
+  "countries": [
+    "kenya",
+    "ghana",
+    "south-africa"
+  ],
+  "environments": [
+    "development",
+    "staging",
+    "production",
+    "shared"
+  ],
+  "owners": [
+    "cloud-security",
+    "platform",
+    "application-security",
+    "security-operations"
+  ],
+  "required_categories": [
+    "identity",
+    "network",
+    "edge-dns",
+    "kms-secrets",
+    "supply-chain",
+    "cloud-posture",
+    "data-location",
+    "logging-monitoring",
+    "governance"
+  ],
+  "required_control_ids": [
+    "IAM-C01",
+    "IAM-C02",
+    "NET-C01",
+    "NET-C04",
+    "KMS-C01",
+    "KMS-C03",
+    "SEC-C02",
+    "CICD-C01",
+    "DEP-C02",
+    "CSPM-C01",
+    "CSPM-C02",
+    "CSPM-C03",
+    "CSPM-C04",
+    "CSPM-C05",
+    "GOV-C01",
+    "GOV-C02",
+    "GOV-C03",
+    "MON-C01"
+  ],
+  "allowed_validation_modes": [
+    "repository-static",
+    "ci-enforced",
+    "live-pending"
+  ],
+  "allowed_detection_methods": [
+    "repository-validator",
+    "terraform-static",
+    "trivy-config",
+    "opa-policy",
+    "github-ruleset",
+    "cloud-asset-inventory",
+    "security-command-center",
+    "cloud-logging",
+    "terraform-plan-drift",
+    "manual-review"
+  ],
+  "severity_policy": {
+    "critical": {
+      "max_remediation_hours": 24,
+      "merge_blocking": true
+    },
+    "high": {
+      "max_remediation_hours": 168,
+      "merge_blocking": true
+    },
+    "medium": {
+      "max_remediation_hours": 720,
+      "merge_blocking": false
+    },
+    "low": {
+      "max_remediation_hours": 2160,
+      "merge_blocking": false
+    }
+  },
+  "exception_policy": {
+    "registry": "security/exceptions.json",
+    "maximum_days": 90,
+    "required_fields": [
+      "id",
+      "scope",
+      "rationale",
+      "compensating_controls",
+      "owner",
+      "approved_by",
+      "tracking_url",
+      "created_on",
+      "expires_on"
+    ]
+  },
+  "live_cloud_sources": [
+    {
+      "source": "cloud-asset-inventory",
+      "status": "planned",
+      "purpose": "Asset, IAM, metadata, location, public exposure, and drift evidence after the live GCP foundation exists."
+    },
+    {
+      "source": "security-command-center",
+      "status": "planned",
+      "purpose": "Cloud posture findings and security-control observations after the live GCP foundation exists."
+    }
+  ],
+  "live_validation_prerequisites": [
+    "Bootstrap and live-validate GitHub Workload Identity Federation and deployment IAM.",
+    "Apply the reviewed v0.7 Google Cloud foundation in a controlled environment.",
+    "Enable reviewed Cloud Asset Inventory and Security Command Center data sources without weakening country isolation.",
+    "Capture live positive, negative, drift, remediation, and closure evidence before marking live controls validated."
+  ]
+}
