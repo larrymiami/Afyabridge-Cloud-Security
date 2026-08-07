@@ -69,6 +69,22 @@ async function requireRepositoryPath(relativePath, label) {
   }
 }
 
+function matrixControlStatus(matrix, id, sourcePath) {
+  const row = matrix
+    .split("\n")
+    .find((line) => line.startsWith(`| ${id} |`));
+  if (!row) fail(`${id}: control id is not present in ${sourcePath}`);
+
+  const columns = row
+    .split("|")
+    .slice(1, -1)
+    .map((column) => column.trim());
+  if (columns.length !== 8 || columns[0] !== id) {
+    fail(`${id}: authoritative control-matrix row is malformed`);
+  }
+  return columns[7];
+}
+
 const governance = await loadJson(governanceArg, "governance profile");
 if (governance.schema_version !== 1) fail("governance schema_version must be 1");
 if (governance.profile_id !== "AFYA-CSPM-BASELINE-1") {
@@ -139,11 +155,34 @@ for (const [severity, maximumHours] of Object.entries(maximumSeverityHours)) {
 
 const exceptionPolicy = governance.exception_policy;
 if (!exceptionPolicy || typeof exceptionPolicy !== "object") fail("exception_policy is required");
+if (exceptionPolicy.registry !== "security/exceptions.json") {
+  fail("exception_policy.registry must remain security/exceptions.json");
+}
 if (!Number.isInteger(exceptionPolicy.maximum_days) || exceptionPolicy.maximum_days < 1 || exceptionPolicy.maximum_days > 90) {
   fail("exception_policy.maximum_days must be between 1 and 90");
 }
 await requireRepositoryPath(exceptionPolicy.registry, "exception_policy.registry");
-requireUniqueStrings(exceptionPolicy.required_fields, "exception_policy.required_fields");
+const requiredExceptionFields = requireUniqueStrings(
+  exceptionPolicy.required_fields,
+  "exception_policy.required_fields",
+);
+const expectedExceptionFields = new Set([
+  "id",
+  "scope",
+  "rationale",
+  "compensating_controls",
+  "owner",
+  "approved_by",
+  "tracking_url",
+  "created_on",
+  "expires_on",
+]);
+if (
+  requiredExceptionFields.size !== expectedExceptionFields.size ||
+  [...expectedExceptionFields].some((field) => !requiredExceptionFields.has(field))
+) {
+  fail("exception_policy.required_fields must match the reviewed security exception contract");
+}
 
 const liveSources = requireArray(governance.live_cloud_sources, "live_cloud_sources");
 const liveSourceNames = new Set();
@@ -160,7 +199,12 @@ for (const [index, source] of liveSources.entries()) {
 for (const required of ["cloud-asset-inventory", "security-command-center"]) {
   if (!liveSourceNames.has(required)) fail(`live_cloud_sources must include ${required}`);
 }
-requireArray(governance.live_validation_prerequisites, "live_validation_prerequisites");
+for (const [index, prerequisite] of requireArray(
+  governance.live_validation_prerequisites,
+  "live_validation_prerequisites",
+).entries()) {
+  requireString(prerequisite, `live_validation_prerequisites[${index}]`, 20);
+}
 
 const catalogue = await loadJson(catalogueArg, "control catalogue");
 if (catalogue.schema_version !== 1) fail("catalogue schema_version must be 1");
@@ -172,6 +216,7 @@ if (catalogue.source_control_matrix !== "docs/security-control-matrix.md") {
 }
 await requireRepositoryPath(catalogue.source_control_matrix, "source_control_matrix");
 const matrix = await readFile(join(root, catalogue.source_control_matrix), "utf8");
+const allowedMatrixStatuses = new Set(["In progress", "Implemented", "Validated"]);
 
 const controls = requireArray(catalogue.controls, "catalogue controls");
 if (controls.length < requiredControlIds.size) {
@@ -182,6 +227,7 @@ const ids = new Set();
 const coveredCategories = new Set();
 const severityCounts = new Map();
 const modeCounts = new Map();
+const matrixStatusCounts = new Map();
 let liveValidationPending = 0;
 
 for (const [index, control] of controls.entries()) {
@@ -194,9 +240,11 @@ for (const [index, control] of controls.entries()) {
   }
   if (ids.has(id)) fail(`${id}: duplicate control id`);
   ids.add(id);
-  if (!matrix.includes(`| ${id} |`)) {
-    fail(`${id}: control id is not present in ${catalogue.source_control_matrix}`);
+  const matrixStatus = matrixControlStatus(matrix, id, catalogue.source_control_matrix);
+  if (!allowedMatrixStatuses.has(matrixStatus)) {
+    fail(`${id}: authoritative control-matrix status ${matrixStatus} is inconsistent with inclusion in the active posture baseline`);
   }
+  matrixStatusCounts.set(matrixStatus, (matrixStatusCounts.get(matrixStatus) ?? 0) + 1);
 
   requireString(control.title, `${id}.title`, 12);
   requireString(control.requirement, `${id}.requirement`, 40);
@@ -301,6 +349,7 @@ if ((modeCounts.get("live-pending") ?? 0) < 2) {
 }
 
 console.log(`Cloud posture catalogue validated: ${controls.length} controls across ${coveredCategories.size} categories.`);
+console.log(`Control-matrix lifecycle: ${JSON.stringify(Object.fromEntries(matrixStatusCounts))}`);
 console.log(`Validation modes: ${JSON.stringify(Object.fromEntries(modeCounts))}`);
 console.log(`Severity profile: ${JSON.stringify(Object.fromEntries(severityCounts))}`);
 console.log(`Controls still requiring live Google Cloud validation: ${liveValidationPending}.`);
