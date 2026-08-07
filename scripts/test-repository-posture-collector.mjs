@@ -135,11 +135,31 @@ await runCase(
 );
 
 await runCase(
+  "KMS rotation default weakened below reviewed 90-day value",
+  (directory) => mutateFile(
+    directory,
+    "infra/terraform/modules/cloud-kms/variables.tf",
+    (source) => source.replace('rotation_period             = optional(string, "7776000s")', 'rotation_period             = optional(string, "60s")'),
+  ),
+  (snapshot) => snapshot.facts.kms.rotation_default_configured === false,
+);
+
+await runCase(
   "KMS destruction-delay default removed",
   (directory) => mutateFile(
     directory,
     "infra/terraform/modules/cloud-kms/variables.tf",
     (source) => source.replace('destroy_scheduled_duration  = optional(string, "2592000s")', 'destroy_scheduled_duration  = optional(string)'),
+  ),
+  (snapshot) => snapshot.facts.kms.destroy_delay_default_configured === false,
+);
+
+await runCase(
+  "KMS destruction-delay default weakened below reviewed 30-day value",
+  (directory) => mutateFile(
+    directory,
+    "infra/terraform/modules/cloud-kms/variables.tf",
+    (source) => source.replace('destroy_scheduled_duration  = optional(string, "2592000s")', 'destroy_scheduled_duration  = optional(string, "86400s")'),
   ),
   (snapshot) => snapshot.facts.kms.destroy_delay_default_configured === false,
 );
@@ -188,4 +208,4 @@ await runCase(
   }
 }
 
-console.log("Repository posture collector compromise controls validated: 13 scenarios passed.");
+console.log("Repository posture collector compromise controls validated: 15 scenarios passed.");
