@@ -33,7 +33,9 @@ function parseDate(value, field, id) {
     fail(`${id}: ${field} must use YYYY-MM-DD`);
   }
   const date = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) fail(`${id}: ${field} is invalid`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    fail(`${id}: ${field} is invalid`);
+  }
   return date;
 }
 
