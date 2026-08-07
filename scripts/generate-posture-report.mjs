@@ -111,6 +111,9 @@ export function validateReportingConfiguration({ policy, governance, history, as
   if (policy.profile_id !== governance.profile_id || policy.profile_id !== "AFYA-CSPM-BASELINE-1") {
     fail("reporting policy profile_id must match the reviewed posture profile");
   }
+  if (governance.profile_stage !== "repository-baseline") {
+    fail("v0.10D may not claim a live-operational profile without a reviewed future reporting-stage change");
+  }
   if (policy.findings_registry !== "security/posture-findings.json") {
     fail("findings_registry must remain security/posture-findings.json");
   }
@@ -122,11 +125,7 @@ export function validateReportingConfiguration({ policy, governance, history, as
   }
 
   requireExactStringSet(policy.decision_levels, REQUIRED_DECISIONS, "decision_levels");
-  requireExactStringSet(
-    policy.unaccepted_active_statuses,
-    REQUIRED_UNACCEPTED_STATUSES,
-    "unaccepted_active_statuses",
-  );
+  requireExactStringSet(policy.unaccepted_active_statuses, REQUIRED_UNACCEPTED_STATUSES, "unaccepted_active_statuses");
   if (policy.risk_accepted_status !== "risk-accepted") fail("risk_accepted_status must remain risk-accepted");
   if (policy.closed_status !== "closed") fail("closed_status must remain closed");
 
@@ -153,9 +152,7 @@ export function validateReportingConfiguration({ policy, governance, history, as
     if (attention[condition] !== true) fail(`${condition} must remain enabled`);
   }
 
-  if (policy.exception_expiry_warning_days !== 7) {
-    fail("exception_expiry_warning_days must remain 7");
-  }
+  if (policy.exception_expiry_warning_days !== 7) fail("exception_expiry_warning_days must remain 7");
 
   const trend = requireObject(policy.trend, "trend");
   if (trend.lookback_days !== 30) fail("trend.lookback_days must remain 30");
@@ -190,15 +187,12 @@ export function validateReportingConfiguration({ policy, governance, history, as
     seen.add(snapshot.generated_at);
     if (previous && generated <= previous) fail("metrics history snapshots must be strictly chronological");
     previous = generated;
-    if (!REQUIRED_DECISIONS.includes(snapshot.decision)) {
-      fail(`history.snapshots[${index}].decision is unsupported`);
-    }
+    if (!REQUIRED_DECISIONS.includes(snapshot.decision)) fail(`history.snapshots[${index}].decision is unsupported`);
     if (!new Set(["repository-baseline", "live-operational"]).has(snapshot.evidence_mode)) {
       fail(`history.snapshots[${index}].evidence_mode is unsupported`);
     }
     exactMetricObject(snapshot.metrics, `history.snapshots[${index}].metrics`);
   }
-
   return { snapshots };
 }
 
@@ -216,10 +210,7 @@ function buildTrend({ policy, history, currentSnapshot, asOf }) {
     return timestamp >= lookbackStart && timestamp < asOf;
   });
   const snapshotsConsidered = prior.length + 1;
-  const allOperational =
-    currentSnapshot.evidence_mode === "live-operational" &&
-    prior.every((snapshot) => snapshot.evidence_mode === "live-operational");
-
+  const allOperational = currentSnapshot.evidence_mode === "live-operational" && prior.every((snapshot) => snapshot.evidence_mode === "live-operational");
   if (snapshotsConsidered < policy.trend.minimum_snapshots) {
     return {
       status: "insufficient-history",
@@ -232,7 +223,6 @@ function buildTrend({ policy, history, currentSnapshot, asOf }) {
       deltas: {},
     };
   }
-
   const baseline = prior[0];
   const deltas = {};
   let improving = 0;
@@ -242,14 +232,8 @@ function buildTrend({ policy, history, currentSnapshot, asOf }) {
     const direction = trendDirection(delta, policy.trend.metric_directions[metric]);
     if (direction === "improving") improving += 1;
     if (direction === "worsening") worsening += 1;
-    deltas[metric] = {
-      baseline: baseline.metrics[metric],
-      current: currentSnapshot.metrics[metric],
-      delta,
-      direction,
-    };
+    deltas[metric] = { baseline: baseline.metrics[metric], current: currentSnapshot.metrics[metric], delta, direction };
   }
-
   return {
     status: "available",
     evidence_class: allOperational ? "operational" : "repository-evidence",
@@ -262,36 +246,66 @@ function buildTrend({ policy, history, currentSnapshot, asOf }) {
   };
 }
 
-export function buildPostureReport({ findingsRegistry, exceptionsRegistry, governance, policy, history, evaluation, asOf }) {
-  validateReportingConfiguration({ policy, governance, history, asOf });
-  if (findingsRegistry?.schema_version !== 1 || !Array.isArray(findingsRegistry.findings)) {
-    fail("finding registry must use schema_version 1 and contain findings array");
-  }
-  if (exceptionsRegistry?.schema_version !== 1 || !Array.isArray(exceptionsRegistry.exceptions)) {
-    fail("exception registry must use schema_version 1 and contain exceptions array");
-  }
-  if (evaluation?.schema_version !== 1 || !evaluation.summary) {
-    fail("cloud posture evaluation must use schema_version 1 and contain summary");
-  }
-  if (evaluation.profile_id !== policy.profile_id) fail("cloud posture evaluation profile_id must match reporting policy");
+function normalizeEvidenceContext(value = {}) {
+  const input = value && typeof value === "object" ? value : {};
+  return {
+    repository: input.repository ?? "unknown",
+    workflow: input.workflow ?? "unknown",
+    run_id: input.run_id ?? "unknown",
+    run_attempt: input.run_attempt ?? "unknown",
+    event: input.event ?? "unknown",
+    ref: input.ref ?? "unknown",
+    commit: input.commit ?? "unknown",
+  };
+}
 
+function validateEvaluation(evaluation) {
+  if (evaluation?.schema_version !== 1 || !evaluation.summary) fail("cloud posture evaluation must use schema_version 1 and contain summary");
   for (const field of ["rules_evaluated", "passing", "failing", "blocking_findings", "live_validation_pending"]) {
     requireNonNegativeInteger(evaluation.summary[field], `evaluation.summary.${field}`);
   }
   if (evaluation.summary.passing + evaluation.summary.failing !== evaluation.summary.rules_evaluated) {
     fail("cloud posture evaluation passing + failing must equal rules_evaluated");
   }
+  if (!Array.isArray(evaluation.results) || evaluation.results.length !== evaluation.summary.rules_evaluated) {
+    fail("cloud posture evaluation results must contain exactly rules_evaluated entries");
+  }
+  const passing = evaluation.results.filter((result) => result.status === "pass").length;
+  const failing = evaluation.results.filter((result) => result.status === "fail").length;
+  const blocking = evaluation.results.filter((result) => result.blocking === true).length;
+  const pending = evaluation.results.filter((result) => result.live_validation_required === true).length;
+  if (passing !== evaluation.summary.passing || failing !== evaluation.summary.failing || blocking !== evaluation.summary.blocking_findings || pending !== evaluation.summary.live_validation_pending) {
+    fail("cloud posture evaluation summary must match its per-rule results");
+  }
+}
+
+function repositoryCategorySummary(evaluation) {
+  const categories = {};
+  for (const result of evaluation.results) {
+    const category = result.category ?? "unknown";
+    const current = categories[category] ?? { rules_evaluated: 0, passing: 0, failing: 0, blocking_findings: 0, live_validation_pending: 0 };
+    current.rules_evaluated += 1;
+    current.passing += result.status === "pass" ? 1 : 0;
+    current.failing += result.status === "fail" ? 1 : 0;
+    current.blocking_findings += result.blocking === true ? 1 : 0;
+    current.live_validation_pending += result.live_validation_required === true ? 1 : 0;
+    categories[category] = current;
+  }
+  return Object.fromEntries(Object.entries(categories).sort(([a], [b]) => a.localeCompare(b)));
+}
+
+export function buildPostureReport({ findingsRegistry, exceptionsRegistry, governance, policy, history, evaluation, asOf, evidenceContext = {}, governancePrecondition = "success" }) {
+  validateReportingConfiguration({ policy, governance, history, asOf });
+  if (findingsRegistry?.schema_version !== 1 || !Array.isArray(findingsRegistry.findings)) fail("finding registry must use schema_version 1 and contain findings array");
+  if (exceptionsRegistry?.schema_version !== 1 || !Array.isArray(exceptionsRegistry.exceptions)) fail("exception registry must use schema_version 1 and contain exceptions array");
+  validateEvaluation(evaluation);
+  if (evaluation.profile_id !== policy.profile_id) fail("cloud posture evaluation profile_id must match reporting policy");
 
   const findings = findingsRegistry.findings;
   const closedStatus = policy.closed_status;
   const riskAcceptedStatus = policy.risk_accepted_status;
   const unacceptedStatuses = new Set(policy.unaccepted_active_statuses);
-  const blockingSeverities = new Set(
-    Object.entries(governance.severity_policy ?? {})
-      .filter(([, config]) => config?.merge_blocking === true)
-      .map(([severity]) => severity),
-  );
-
+  const blockingSeverities = new Set(Object.entries(governance.severity_policy ?? {}).filter(([, config]) => config?.merge_blocking === true).map(([severity]) => severity));
   const active = findings.filter((finding) => finding.status !== closedStatus);
   const riskAccepted = findings.filter((finding) => finding.status === riskAcceptedStatus);
   const resolvedPendingVerification = findings.filter((finding) => finding.status === "resolved");
@@ -300,16 +314,11 @@ export function buildPostureReport({ findingsRegistry, exceptionsRegistry, gover
   const nonblockingActive = unaccepted.filter((finding) => !blockingSeverities.has(finding.severity));
   const overdue = findings.filter((finding) => {
     if (!new Set(["open", "in-remediation"]).has(finding.status)) return false;
-    const due = parseReportingTimestamp(finding.remediation_due_at, `${finding.id ?? "finding"}.remediation_due_at`);
-    return due < asOf;
+    return parseReportingTimestamp(finding.remediation_due_at, `${finding.id ?? "finding"}.remediation_due_at`) < asOf;
   });
 
-  const allowedPostureExceptionGates = new Set(
-    governance.finding_lifecycle?.risk_acceptance?.allowed_exception_gates ?? [],
-  );
-  const postureExceptions = exceptionsRegistry.exceptions.filter((exception) =>
-    allowedPostureExceptionGates.has(exception.gate),
-  );
+  const allowedPostureExceptionGates = new Set(governance.finding_lifecycle?.risk_acceptance?.allowed_exception_gates ?? []);
+  const postureExceptions = exceptionsRegistry.exceptions.filter((exception) => allowedPostureExceptionGates.has(exception.gate));
   const activeExceptions = postureExceptions.filter((exception) => exception.status === "active");
   const historicalExceptions = postureExceptions.filter((exception) => exception.status === "historical");
   const asOfDate = utcDate(asOf);
@@ -323,7 +332,6 @@ export function buildPostureReport({ findingsRegistry, exceptionsRegistry, gover
   const statusNames = governance.finding_lifecycle?.allowed_statuses ?? [];
   const ownerNames = governance.owners ?? [];
   const sourceNames = governance.finding_lifecycle?.allowed_sources ?? [];
-
   const metrics = {
     active_findings: active.length,
     overdue_findings: overdue.length,
@@ -335,83 +343,27 @@ export function buildPostureReport({ findingsRegistry, exceptionsRegistry, gover
 
   const blockReasons = [];
   const thresholds = policy.thresholds;
-  if (metrics.overdue_findings > thresholds.maximum_overdue_findings) {
-    blockReasons.push({
-      code: "overdue-findings",
-      count: metrics.overdue_findings,
-      threshold: thresholds.maximum_overdue_findings,
-      message: "Unaccepted open or in-remediation findings are past their governed remediation deadline.",
-    });
-  }
-  if (unacceptedMergeBlocking.length > thresholds.maximum_unaccepted_merge_blocking_findings) {
-    blockReasons.push({
-      code: "unaccepted-merge-blocking-findings",
-      count: unacceptedMergeBlocking.length,
-      threshold: thresholds.maximum_unaccepted_merge_blocking_findings,
-      message: "Critical/high findings remain unaccepted and not independently closed.",
-    });
-  }
-  if (evaluation.summary.blocking_findings > thresholds.maximum_repository_blocking_findings) {
-    blockReasons.push({
-      code: "repository-blocking-findings",
-      count: evaluation.summary.blocking_findings,
-      threshold: thresholds.maximum_repository_blocking_findings,
-      message: "The executable repository posture evaluation contains merge-blocking failures.",
-    });
-  }
+  if (governancePrecondition !== "success") blockReasons.push({ code: "governance-precondition-failed", count: 1, threshold: 0, message: `Security governance validation precondition is ${governancePrecondition}; this report cannot claim a clean posture decision.` });
+  if (metrics.overdue_findings > thresholds.maximum_overdue_findings) blockReasons.push({ code: "overdue-findings", count: metrics.overdue_findings, threshold: thresholds.maximum_overdue_findings, message: "Unaccepted open or in-remediation findings are past their governed remediation deadline." });
+  if (unacceptedMergeBlocking.length > thresholds.maximum_unaccepted_merge_blocking_findings) blockReasons.push({ code: "unaccepted-merge-blocking-findings", count: unacceptedMergeBlocking.length, threshold: thresholds.maximum_unaccepted_merge_blocking_findings, message: "Critical/high findings remain unaccepted and not independently closed." });
+  if (evaluation.summary.blocking_findings > thresholds.maximum_repository_blocking_findings) blockReasons.push({ code: "repository-blocking-findings", count: evaluation.summary.blocking_findings, threshold: thresholds.maximum_repository_blocking_findings, message: "The executable repository posture evaluation contains merge-blocking failures." });
 
   const attentionReasons = [];
-  if (policy.attention_conditions.nonblocking_active_findings && nonblockingActive.length > 0) {
-    attentionReasons.push({
-      code: "nonblocking-active-findings",
-      count: nonblockingActive.length,
-      message: "Medium/low unaccepted findings remain active and require tracking.",
-    });
-  }
-  if (policy.attention_conditions.risk_accepted_findings && riskAccepted.length > 0) {
-    attentionReasons.push({
-      code: "risk-accepted-findings",
-      count: riskAccepted.length,
-      message: "Time-bounded risk acceptances are currently active.",
-    });
-  }
-  if (
-    policy.attention_conditions.repository_nonblocking_findings &&
-    evaluation.summary.failing > evaluation.summary.blocking_findings
-  ) {
-    attentionReasons.push({
-      code: "repository-nonblocking-findings",
-      count: evaluation.summary.failing - evaluation.summary.blocking_findings,
-      message: "The repository posture evaluation contains non-blocking failures.",
-    });
-  }
-  if (expiringSoon.length > 0) {
-    attentionReasons.push({
-      code: "posture-exceptions-expiring-soon",
-      count: expiringSoon.length,
-      message: `Posture exceptions expire within ${policy.exception_expiry_warning_days} days.`,
-    });
-  }
+  if (policy.attention_conditions.nonblocking_active_findings && nonblockingActive.length > 0) attentionReasons.push({ code: "nonblocking-active-findings", count: nonblockingActive.length, message: "Medium/low unaccepted findings remain active and require tracking." });
+  if (policy.attention_conditions.risk_accepted_findings && riskAccepted.length > 0) attentionReasons.push({ code: "risk-accepted-findings", count: riskAccepted.length, message: "Time-bounded risk acceptances are currently active." });
+  if (policy.attention_conditions.repository_nonblocking_findings && evaluation.summary.failing > evaluation.summary.blocking_findings) attentionReasons.push({ code: "repository-nonblocking-findings", count: evaluation.summary.failing - evaluation.summary.blocking_findings, message: "The repository posture evaluation contains non-blocking failures." });
+  if (expiringSoon.length > 0) attentionReasons.push({ code: "posture-exceptions-expiring-soon", count: expiringSoon.length, message: `Posture exceptions expire within ${policy.exception_expiry_warning_days} days.` });
 
   const decision = blockReasons.length > 0 ? "block" : attentionReasons.length > 0 ? "attention" : "pass";
   const generatedAt = asOf.toISOString().replace(".000Z", "Z");
-  const liveCloudSourcesActive = (governance.live_cloud_sources ?? [])
-    .filter((source) => source.status === "active")
-    .map((source) => source.source);
-  const plannedLiveCloudSources = (governance.live_cloud_sources ?? [])
-    .filter((source) => source.status !== "active")
-    .map((source) => source.source);
-  const evidenceMode = liveCloudSourcesActive.length > 0 ? "live-operational" : "repository-baseline";
-
-  const currentSnapshot = {
-    schema_version: 1,
-    profile_id: policy.profile_id,
-    generated_at: generatedAt,
-    evidence_mode: evidenceMode,
-    decision,
-    metrics,
-  };
+  const liveCloudSourcesActive = (governance.live_cloud_sources ?? []).filter((source) => source.status === "active").map((source) => source.source);
+  const plannedLiveCloudSources = (governance.live_cloud_sources ?? []).filter((source) => source.status !== "active").map((source) => source.source);
+  const evidenceMode = "repository-baseline";
+  const context = normalizeEvidenceContext(evidenceContext);
+  const currentSnapshot = { schema_version: 1, profile_id: policy.profile_id, generated_at: generatedAt, evidence_mode: evidenceMode, decision, evidence_context: context, metrics };
   const trend = buildTrend({ policy, history, currentSnapshot, asOf });
+  const categorySummary = repositoryCategorySummary(evaluation);
+  const desiredStatePercent = evaluation.summary.rules_evaluated === 0 ? 0 : Number(((evaluation.summary.passing / evaluation.summary.rules_evaluated) * 100).toFixed(1));
 
   return {
     schema_version: 1,
@@ -419,58 +371,21 @@ export function buildPostureReport({ findingsRegistry, exceptionsRegistry, gover
     profile_id: policy.profile_id,
     generated_at: generatedAt,
     evidence_mode: evidenceMode,
+    evidence_context: context,
+    governance_precondition: governancePrecondition,
     decision,
     decision_reasons: decision === "block" ? blockReasons : decision === "attention" ? attentionReasons : [],
-    repository_posture: {
-      source: evaluation.source ?? null,
-      rules_evaluated: evaluation.summary.rules_evaluated,
-      passing: evaluation.summary.passing,
-      failing: evaluation.summary.failing,
-      blocking_findings: evaluation.summary.blocking_findings,
-      live_validation_pending: evaluation.summary.live_validation_pending,
-    },
-    findings: {
-      total: findings.length,
-      active: active.length,
-      closed: metrics.closed_findings,
-      overdue: overdue.length,
-      risk_accepted: riskAccepted.length,
-      resolved_pending_verification: resolvedPendingVerification.length,
-      unaccepted_merge_blocking: unacceptedMergeBlocking.length,
-      nonblocking_active: nonblockingActive.length,
-      by_status: countBy(findings, "status", statusNames),
-      by_severity: countBy(findings, "severity", severityNames),
-      by_owner: countBy(findings, "owner", ownerNames),
-      by_source: countBy(findings, "source", sourceNames),
-    },
-    exceptions: {
-      posture_total: postureExceptions.length,
-      active: activeExceptions.length,
-      historical: historicalExceptions.length,
-      expiring_within_warning_window: expiringSoon.length,
-      warning_days: policy.exception_expiry_warning_days,
-    },
+    repository_posture: { source: evaluation.source ?? null, rules_evaluated: evaluation.summary.rules_evaluated, passing: evaluation.summary.passing, failing: evaluation.summary.failing, blocking_findings: evaluation.summary.blocking_findings, live_validation_pending: evaluation.summary.live_validation_pending, desired_state_pass_percent: desiredStatePercent, by_category: categorySummary },
+    findings: { total: findings.length, active: active.length, closed: metrics.closed_findings, overdue: overdue.length, risk_accepted: riskAccepted.length, resolved_pending_verification: resolvedPendingVerification.length, unaccepted_merge_blocking: unacceptedMergeBlocking.length, nonblocking_active: nonblockingActive.length, by_status: countBy(findings, "status", statusNames), by_severity: countBy(findings, "severity", severityNames), by_owner: countBy(findings, "owner", ownerNames), by_source: countBy(findings, "source", sourceNames) },
+    exceptions: { posture_total: postureExceptions.length, active: activeExceptions.length, historical: historicalExceptions.length, expiring_within_warning_window: expiringSoon.length, warning_days: policy.exception_expiry_warning_days },
     sla: {
       overdue_open_or_remediation: overdue.length,
-      within_deadline_open_or_remediation: findings.filter((finding) => {
-        if (!new Set(["open", "in-remediation"]).has(finding.status)) return false;
-        return parseReportingTimestamp(
-          finding.remediation_due_at,
-          `${finding.id ?? "finding"}.remediation_due_at`,
-        ) >= asOf;
-      }).length,
+      within_deadline_open_or_remediation: findings.filter((finding) => new Set(["open", "in-remediation"]).has(finding.status) && parseReportingTimestamp(finding.remediation_due_at, `${finding.id ?? "finding"}.remediation_due_at`) >= asOf).length,
       active_risk_acceptances: riskAccepted.length,
       pending_independent_verification: resolvedPendingVerification.length,
     },
     trend,
-    boundary: {
-      profile_stage: governance.profile_stage,
-      active_operational_finding_sources: governance.finding_lifecycle?.active_sources ?? [],
-      live_cloud_sources_active: liveCloudSourcesActive,
-      live_cloud_sources_planned: plannedLiveCloudSources,
-      operational_trend_available: trend.status === "available" && trend.evidence_class === "operational",
-      live_validation_pending: evaluation.summary.live_validation_pending,
-    },
+    boundary: { profile_stage: governance.profile_stage, active_operational_finding_sources: governance.finding_lifecycle?.active_sources ?? [], live_cloud_sources_active: liveCloudSourcesActive, live_cloud_sources_planned: plannedLiveCloudSources, operational_trend_available: false, live_validation_pending: evaluation.summary.live_validation_pending },
     metrics_snapshot: currentSnapshot,
   };
 }
@@ -481,10 +396,14 @@ export function postureReportMarkdown(report) {
     "",
     `- Decision: **${report.decision.toUpperCase()}**`,
     `- Evidence mode: \`${report.evidence_mode}\``,
+    `- Governance precondition: \`${report.governance_precondition}\``,
     `- Generated: \`${report.generated_at}\``,
     `- Profile: \`${report.profile_id}\``,
+    `- Commit: \`${report.evidence_context.commit}\``,
+    `- Ref: \`${report.evidence_context.ref}\``,
+    `- Run: \`${report.evidence_context.run_id}\` attempt \`${report.evidence_context.run_attempt}\``,
     "",
-    "## Repository posture",
+    "## Repository desired-state posture",
     "",
     "| Metric | Value |",
     "|---|---:|",
@@ -492,7 +411,16 @@ export function postureReportMarkdown(report) {
     `| Passing | ${report.repository_posture.passing} |`,
     `| Failing | ${report.repository_posture.failing} |`,
     `| Blocking | ${report.repository_posture.blocking_findings} |`,
+    `| Desired-state pass rate | ${report.repository_posture.desired_state_pass_percent}% |`,
     `| Still requiring live validation | ${report.repository_posture.live_validation_pending} |`,
+    "",
+    "### Desired-state coverage by category",
+    "",
+    "| Category | Rules | Pass | Fail | Blocking | Live pending |",
+    "|---|---:|---:|---:|---:|---:|",
+  ];
+  for (const [category, summary] of Object.entries(report.repository_posture.by_category)) lines.push(`| ${category} | ${summary.rules_evaluated} | ${summary.passing} | ${summary.failing} | ${summary.blocking_findings} | ${summary.live_validation_pending} |`);
+  lines.push(
     "",
     "## Governed findings",
     "",
@@ -517,36 +445,16 @@ export function postureReportMarkdown(report) {
     `- Status: **${report.trend.status}**`,
     `- Evidence class: \`${report.trend.evidence_class}\``,
     `- Snapshots considered: **${report.trend.snapshots_considered}**`,
-  ];
-
+  );
   if (report.trend.status === "available") {
-    lines.push(
-      `- Baseline snapshot: \`${report.trend.baseline_generated_at}\``,
-      `- Overall direction: **${report.trend.overall_direction.toUpperCase()}**`,
-      "",
-      "| Trend metric | Baseline | Current | Delta | Direction |",
-      "|---|---:|---:|---:|---|",
-    );
-    for (const [metric, result] of Object.entries(report.trend.deltas)) {
-      lines.push(
-        `| ${metric} | ${result.baseline} | ${result.current} | ${result.delta} | ${result.direction} |`,
-      );
-    }
+    lines.push(`- Baseline snapshot: \`${report.trend.baseline_generated_at}\``, `- Overall direction: **${report.trend.overall_direction.toUpperCase()}**`, "", "| Trend metric | Baseline | Current | Delta | Direction |", "|---|---:|---:|---:|---|");
+    for (const [metric, result] of Object.entries(report.trend.deltas)) lines.push(`| ${metric} | ${result.baseline} | ${result.current} | ${result.delta} | ${result.direction} |`);
   } else {
-    lines.push(
-      "- Trend direction is intentionally not claimed until the governed minimum history exists.",
-    );
+    lines.push("- Trend direction is intentionally not claimed until the governed minimum history exists.");
   }
-
   lines.push("", "## Decision reasons", "");
-  if (report.decision_reasons.length === 0) {
-    lines.push("- No governed block or attention threshold is currently triggered.");
-  } else {
-    for (const reason of report.decision_reasons) {
-      lines.push(`- **${reason.code}** (${reason.count}): ${reason.message}`);
-    }
-  }
-
+  if (report.decision_reasons.length === 0) lines.push("- No governed block or attention threshold is currently triggered.");
+  else for (const reason of report.decision_reasons) lines.push(`- **${reason.code}** (${reason.count}): ${reason.message}`);
   lines.push(
     "",
     "## Evidence boundary",
@@ -556,18 +464,15 @@ export function postureReportMarkdown(report) {
     `- Planned live-cloud sources: ${report.boundary.live_cloud_sources_planned.map((source) => `\`${source}\``).join(", ") || "none"}`,
     `- Operational trend available: **${report.boundary.operational_trend_available ? "yes" : "no"}**`,
     "",
-    "A repository-baseline PASS is a governed desired-state and lifecycle reporting result. It does not prove live Google Cloud effective state, real remote-state drift, or operational trend performance while live sources remain pending.",
+    "The percentage and category table above describe reviewed repository desired state only. A repository-baseline PASS does not prove live Google Cloud effective state, real remote-state drift, or operational trend performance while live sources remain pending.",
     "",
   );
   return `${lines.join("\n")}\n`;
 }
 
 async function loadJson(path, label) {
-  try {
-    return JSON.parse(await readFile(path, "utf8"));
-  } catch (error) {
-    fail(`${label} could not be loaded as JSON: ${error.message}`);
-  }
+  try { return JSON.parse(await readFile(path, "utf8")); }
+  catch (error) { fail(`${label} could not be loaded as JSON: ${error.message}`); }
 }
 
 function argument(name, fallback = null) {
@@ -586,10 +491,17 @@ async function main() {
   const markdownOutput = argument("--markdown");
   const snapshotOutput = argument("--snapshot");
   const asOfArgument = argument("--as-of");
-  const asOf = asOfArgument
-    ? parseReportingTimestamp(asOfArgument, "--as-of")
-    : new Date(Math.floor(Date.now() / 1000) * 1000);
-
+  const asOf = asOfArgument ? parseReportingTimestamp(asOfArgument, "--as-of") : new Date(Math.floor(Date.now() / 1000) * 1000);
+  const governancePrecondition = process.env.POSTURE_GOVERNANCE_RESULT ?? "success";
+  const evidenceContext = {
+    repository: process.env.GITHUB_REPOSITORY ?? "unknown",
+    workflow: process.env.GITHUB_WORKFLOW ?? "unknown",
+    run_id: process.env.GITHUB_RUN_ID ?? "unknown",
+    run_attempt: process.env.GITHUB_RUN_ATTEMPT ?? "unknown",
+    event: process.env.GITHUB_EVENT_NAME ?? "unknown",
+    ref: process.env.GITHUB_REF ?? "unknown",
+    commit: process.env.GITHUB_SHA ?? "unknown",
+  };
   const report = buildPostureReport({
     findingsRegistry: await loadJson(findingsPath, "finding registry"),
     exceptionsRegistry: await loadJson(exceptionsPath, "exception registry"),
@@ -598,8 +510,9 @@ async function main() {
     history: await loadJson(historyPath, "metrics history"),
     evaluation: await loadJson(evaluationPath, "cloud posture evaluation"),
     asOf,
+    evidenceContext,
+    governancePrecondition,
   });
-
   if (jsonOutput) {
     const path = resolve(jsonOutput);
     await mkdir(dirname(path), { recursive: true });
@@ -617,10 +530,7 @@ async function main() {
     await writeFile(path, `${JSON.stringify(report.metrics_snapshot, null, 2)}\n`, "utf8");
   }
   if (!jsonOutput && !markdownOutput) process.stdout.write(markdown);
-
-  console.log(
-    `Posture report generated: decision=${report.decision}; active=${report.findings.active}; overdue=${report.findings.overdue}; trend=${report.trend.status}/${report.trend.evidence_class}.`,
-  );
+  console.log(`Posture report generated: decision=${report.decision}; active=${report.findings.active}; overdue=${report.findings.overdue}; trend=${report.trend.status}/${report.trend.evidence_class}; precondition=${report.governance_precondition}.`);
   if (report.decision === "block") process.exitCode = 1;
 }
 
