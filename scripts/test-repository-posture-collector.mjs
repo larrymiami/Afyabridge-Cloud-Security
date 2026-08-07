@@ -1,7 +1,7 @@
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { collectRepositoryPosture } from "./collect-repository-cloud-posture.mjs";
+import { collectRepositoryPosture, stripHclComments } from "./collect-repository-cloud-posture.mjs";
 
 const root = resolve(process.cwd());
 
@@ -36,6 +36,28 @@ async function runCase(label, mutate, assertUnsafe) {
   }
 }
 
+const commentFixture = `
+value = "https://example.com/#fragment//still-a-string"
+# ipv4_enabled = false
+// public_access_prevention = "enforced"
+/*
+role = "roles/owner"
+*/
+active = true
+`;
+const strippedCommentFixture = stripHclComments(commentFixture);
+if (!strippedCommentFixture.includes('"https://example.com/#fragment//still-a-string"')) {
+  fail("comment stripping must preserve comment-like characters inside quoted strings");
+}
+if (
+  strippedCommentFixture.includes("ipv4_enabled = false") ||
+  strippedCommentFixture.includes('public_access_prevention = "enforced"') ||
+  strippedCommentFixture.includes('role = "roles/owner"')
+) {
+  fail("comment stripping must remove line and block comment contents");
+}
+console.log("PASS allow: HCL comments stripped without altering quoted comment-like text");
+
 const baseline = await collectRepositoryPosture(root);
 if (
   baseline.facts.identity.service_account_key_resources.length !== 0 ||
@@ -53,6 +75,18 @@ await runCase(
     directory,
     "infra/terraform/environments/foundation/variables.tf",
     (source) => source.replace('"iam.disableServiceAccountKeyCreation" = true', '"iam.disableServiceAccountKeyCreation" = false'),
+  ),
+  (snapshot) => snapshot.facts.identity.service_account_key_creation_policy_enforced === false,
+);
+
+await runCase(
+  "commented safe policy cannot spoof an unsafe active value",
+  (directory) => mutateFile(
+    directory,
+    "infra/terraform/environments/foundation/variables.tf",
+    (source) => source
+      .replace('"iam.disableServiceAccountKeyCreation" = true', '"iam.disableServiceAccountKeyCreation" = false')
+      .concat('\n# "iam.disableServiceAccountKeyCreation" = true\n'),
   ),
   (snapshot) => snapshot.facts.identity.service_account_key_creation_policy_enforced === false,
 );
@@ -241,4 +275,4 @@ await runCase(
   }
 }
 
-console.log("Repository posture collector compromise controls validated: 18 scenarios passed.");
+console.log("Repository posture collector compromise controls validated: 20 scenarios passed.");
