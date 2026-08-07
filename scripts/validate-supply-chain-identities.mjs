@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import process from "node:process";
 
-const root = process.cwd();
+const root = process.env.SUPPLY_CHAIN_REPO_ROOT ?? process.cwd();
 
 async function source(path) {
   return readFile(`${root}/${path}`, "utf8");
