@@ -75,8 +75,12 @@ for (const exception of registry.exceptions) {
 
   const created = parseDate(exception.created_on, "created_on", id);
   const expires = parseDate(exception.expires_on, "expires_on", id);
+  if (Number(id.slice(7, 11)) !== created.getUTCFullYear()) {
+    fail(`${id}: exception id year must match created_on year`);
+  }
   const lifetimeDays = Math.round((expires - created) / 86400000);
   if (lifetimeDays < 1 || lifetimeDays > 90) fail(`${id}: exception lifetime must be between 1 and 90 days`);
+  if (created > today) fail(`${id}: exception cannot be created in the future`);
   if (expires < today) fail(`${id}: exception expired on ${exception.expires_on}`);
 }
 
