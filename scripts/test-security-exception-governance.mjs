@@ -18,6 +18,7 @@ function fail(message) {
 function validException() {
   return {
     id: "SEC-EX-2026-001",
+    status: "active",
     gate: "cloud-posture",
     scope: "CSPM-FND-2026-001 / NET-C04",
     rationale: "Temporary risk acceptance while the reviewed remediation is implemented and independently verified.",
@@ -31,6 +32,15 @@ function validException() {
     created_on: "2026-08-07",
     expires_on: "2026-08-21"
   };
+}
+
+function historicalException() {
+  const exception = validException();
+  exception.status = "historical";
+  exception.created_on = "2026-06-01";
+  exception.expires_on = "2026-07-01";
+  exception.retired_on = "2026-06-20";
+  return exception;
 }
 
 async function run(registry) {
@@ -70,11 +80,32 @@ async function expectFail(label, expectedError, registry) {
 }
 
 await expectPass("empty reviewed exception registry", { schema_version: 1, exceptions: [] });
-await expectPass("posture finding risk acceptance uses existing exception registry", {
+await expectPass("active posture finding exception", {
   schema_version: 1,
   exceptions: [validException()],
 });
-
+await expectPass("expired exception retained as historical audit evidence", {
+  schema_version: 1,
+  exceptions: [historicalException()],
+});
+{
+  const exception = validException();
+  exception.status = "historical";
+  exception.created_on = "2026-08-01";
+  exception.retired_on = "2026-08-05";
+  await expectPass("exception may retire early after risk is remediated", {
+    schema_version: 1,
+    exceptions: [exception],
+  });
+}
+{
+  const exception = validException();
+  delete exception.status;
+  await expectFail("exception status is required", "status must be active or historical", {
+    schema_version: 1,
+    exceptions: [exception],
+  });
+}
 {
   const exception = validException();
   exception.expires_on = "2026-02-31";
@@ -87,7 +118,49 @@ await expectPass("posture finding risk acceptance uses existing exception regist
   const exception = validException();
   exception.created_on = "2026-06-01";
   exception.expires_on = "2026-07-01";
-  await expectFail("expired exception rejected", "exception expired on 2026-07-01", {
+  await expectFail("expired active exception must be retired", "active exception expired on 2026-07-01; retire it as historical", {
+    schema_version: 1,
+    exceptions: [exception],
+  });
+}
+{
+  const exception = validException();
+  exception.retired_on = "2026-08-07";
+  await expectFail("active exception cannot carry retirement date", "active exception must not include retired_on", {
+    schema_version: 1,
+    exceptions: [exception],
+  });
+}
+{
+  const exception = historicalException();
+  delete exception.retired_on;
+  await expectFail("historical exception requires retirement date", "retired_on must use YYYY-MM-DD", {
+    schema_version: 1,
+    exceptions: [exception],
+  });
+}
+{
+  const exception = historicalException();
+  exception.retired_on = "2026-05-31";
+  await expectFail("historical retirement cannot precede creation", "retired_on cannot precede created_on", {
+    schema_version: 1,
+    exceptions: [exception],
+  });
+}
+{
+  const exception = historicalException();
+  exception.retired_on = "2026-07-02";
+  await expectFail("historical retirement cannot follow expiry", "retired_on cannot follow expires_on", {
+    schema_version: 1,
+    exceptions: [exception],
+  });
+}
+{
+  const exception = validException();
+  exception.status = "historical";
+  exception.created_on = "2026-08-01";
+  exception.retired_on = "2026-08-08";
+  await expectFail("historical retirement cannot be future-dated", "retired_on cannot be in the future", {
     schema_version: 1,
     exceptions: [exception],
   });
