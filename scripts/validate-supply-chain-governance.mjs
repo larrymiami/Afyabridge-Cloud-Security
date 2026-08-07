@@ -27,6 +27,15 @@ function artifactBlock(workflow, namePattern) {
   return match[0];
 }
 
+function jobBlock(workflow, jobName) {
+  const pattern = new RegExp(
+    `(?:^|\\n)  ${jobName}:\\n[\\s\\S]*?(?=\\n  [A-Za-z0-9_-]+:\\n|$)`,
+  );
+  const match = workflow.match(pattern);
+  if (!match) fail(`required workflow job is missing: ${jobName}`);
+  return match[0];
+}
+
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -67,6 +76,42 @@ if (
   )
 ) {
   fail("container scanning must continue to block fixable HIGH/CRITICAL findings");
+}
+
+const verdict = jobBlock(securityGates, "verdict");
+if (!/name:\s*Security gate verdict/.test(verdict)) {
+  fail("security workflow must expose a stable Security gate verdict check");
+}
+if (!/^\s*if:\s*always\(\)\s*$/m.test(verdict)) {
+  fail("Security gate verdict must run even when an upstream security job fails");
+}
+for (const requiredJob of [
+  "secrets",
+  "dependency-review",
+  "codeql",
+  "iac",
+  "packages",
+  "container",
+  "api-contract",
+  "policy-as-code",
+  "exceptions",
+  "evidence",
+]) {
+  if (!new RegExp(`^\\s*- ${requiredJob}\\s*$`, "m").test(verdict)) {
+    fail(`Security gate verdict must depend on ${requiredJob}`);
+  }
+}
+if (!/SECURITY_GATE_RESULTS:\s*\$\{\{ toJSON\(needs\) \}\}/.test(verdict)) {
+  fail("Security gate verdict must evaluate the actual results of its needs jobs");
+}
+if (!/jq -e --arg event "\$GITHUB_EVENT_NAME"/.test(verdict)) {
+  fail("Security gate verdict must use fail-closed jq result evaluation");
+}
+if (!/\.value\.result == "success"/.test(verdict)) {
+  fail("Security gate verdict must require successful security jobs");
+}
+if (!/\.key == "dependency-review"[\s\S]*\.value\.result == "skipped"/.test(verdict)) {
+  fail("Security gate verdict may allow dependency-review to skip only for non-PR events");
 }
 
 const supplyChain = await source(".github/workflows/supply-chain.yml");
@@ -155,5 +200,5 @@ if (!/retention-days:\s*1/.test(planEvidence)) {
 }
 
 console.log(
-  "Supply-chain dependency risk, provider locks, evidence retention, revocation, and compromise-test governance validated.",
+  "Supply-chain dependency risk, provider locks, fail-closed security verdict, evidence retention, revocation, and compromise-test governance validated.",
 );
