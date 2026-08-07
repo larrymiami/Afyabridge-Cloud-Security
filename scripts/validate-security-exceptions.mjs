@@ -19,6 +19,7 @@ const allowedGates = new Set([
   "cloud-posture",
   "terraform-drift",
 ]);
+const allowedStatuses = new Set(["active", "historical"]);
 
 function fail(message) {
   throw new Error(`Security exception validation failed: ${message}`);
@@ -42,6 +43,8 @@ if (!Array.isArray(registry.exceptions)) fail("exceptions must be an array");
 const ids = new Set();
 const today = asOfValue ? parseDate(asOfValue, "--as-of", "validator") : new Date();
 today.setUTCHours(0, 0, 0, 0);
+let activeCount = 0;
+let historicalCount = 0;
 
 for (const exception of registry.exceptions) {
   const id = exception?.id;
@@ -49,6 +52,7 @@ for (const exception of registry.exceptions) {
   if (ids.has(id)) fail(`${id}: duplicate id`);
   ids.add(id);
 
+  if (!allowedStatuses.has(exception.status)) fail(`${id}: status must be active or historical`);
   if (!allowedGates.has(exception.gate)) fail(`${id}: unsupported gate ${exception.gate ?? "missing"}`);
   if (typeof exception.scope !== "string" || exception.scope.trim().length < 3) fail(`${id}: scope is required`);
   if (typeof exception.rationale !== "string" || exception.rationale.trim().length < 20) fail(`${id}: rationale must be substantive`);
@@ -81,7 +85,20 @@ for (const exception of registry.exceptions) {
   const lifetimeDays = Math.round((expires - created) / 86400000);
   if (lifetimeDays < 1 || lifetimeDays > 90) fail(`${id}: exception lifetime must be between 1 and 90 days`);
   if (created > today) fail(`${id}: exception cannot be created in the future`);
-  if (expires < today) fail(`${id}: exception expired on ${exception.expires_on}`);
+
+  if (exception.status === "active") {
+    if (exception.retired_on !== undefined) fail(`${id}: active exception must not include retired_on`);
+    if (expires < today) fail(`${id}: active exception expired on ${exception.expires_on}; retire it as historical`);
+    activeCount += 1;
+  } else {
+    const retired = parseDate(exception.retired_on, "retired_on", id);
+    if (retired < created) fail(`${id}: retired_on cannot precede created_on`);
+    if (retired > expires) fail(`${id}: retired_on cannot follow expires_on`);
+    if (retired > today) fail(`${id}: retired_on cannot be in the future`);
+    historicalCount += 1;
+  }
 }
 
-console.log(`Security exception registry validated: ${registry.exceptions.length} active exception(s).`);
+console.log(
+  `Security exception registry validated: ${registry.exceptions.length} exception(s); active=${activeCount}, historical=${historicalCount}.`,
+);
