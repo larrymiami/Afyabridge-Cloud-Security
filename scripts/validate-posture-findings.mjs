@@ -73,6 +73,15 @@ function validEvidenceRef(value) {
   );
 }
 
+function validateEvidenceList(values, label, minimum = 1) {
+  if (!Array.isArray(values) || values.length < minimum) {
+    fail(`${label} requires at least ${minimum} evidence item(s)`);
+  }
+  for (const evidence of values) {
+    if (!validEvidenceRef(evidence)) fail(`${label} contains invalid evidence reference ${evidence}`);
+  }
+}
+
 const [registry, governance, catalogue, rules, exceptions] = await Promise.all([
   load(findingsPath, "finding registry"),
   load(governancePath, "posture governance"),
@@ -102,8 +111,7 @@ const allowedSources = new Set(lifecycle.allowed_sources ?? []);
 const activeSources = new Set(lifecycle.active_sources ?? []);
 const allowedActors = new Set(lifecycle.allowed_actors ?? []);
 const approvedOwners = new Set(governance.owners ?? []);
-const requiredFields = lifecycle.required_fields ?? [];
-const requiredFieldSet = new Set(requiredFields);
+const requiredFieldSet = new Set(lifecycle.required_fields ?? []);
 const expectedRequiredFields = [
   "id",
   "source",
@@ -134,6 +142,20 @@ for (const source of activeSources) {
 }
 for (const actor of ["security-automation", ...approvedOwners]) {
   if (!allowedActors.has(actor)) fail(`finding_lifecycle.allowed_actors must include ${actor}`);
+}
+
+const resolutionPolicy = lifecycle.resolution ?? {};
+const allowedVerificationStatuses = new Set(resolutionPolicy.allowed_verification_statuses ?? []);
+for (const status of ["pending", "failed", "passed"]) {
+  if (!allowedVerificationStatuses.has(status)) {
+    fail(`finding_lifecycle.resolution.allowed_verification_statuses must include ${status}`);
+  }
+}
+if (resolutionPolicy.require_attempt_per_resolved_transition !== true) {
+  fail("finding_lifecycle.resolution.require_attempt_per_resolved_transition must remain true");
+}
+if (resolutionPolicy.failed_verification_requires_evidence !== true) {
+  fail("finding_lifecycle.resolution.failed_verification_requires_evidence must remain true");
 }
 
 const controls = new Map((catalogue.controls ?? []).map((control) => [control.id, control]));
@@ -168,6 +190,18 @@ let acceptedCount = 0;
 let resolvedCount = 0;
 let closedCount = 0;
 
+function validateVerifier(finding, attempt, label) {
+  if (!approvedOwners.has(attempt.verified_by)) {
+    fail(`${label}.verified_by must be an approved owner`);
+  }
+  if (requireIndependentVerifier && attempt.verified_by === finding.owner) {
+    fail(`${label}: verifier must be independent from the finding owner`);
+  }
+  const verifiedAt = parseTimestamp(attempt.verified_at, `${label}.verified_at`);
+  if (verifiedAt > asOf) fail(`${label}.verified_at cannot be in the future`);
+  return verifiedAt;
+}
+
 function validateLinkedException(finding, exceptionId, riskAcceptedEvents, requireActiveNow) {
   const exception = exceptionMap.get(exceptionId);
   if (!exception) fail(`${finding.id}: exception ${exceptionId} does not exist`);
@@ -182,15 +216,11 @@ function validateLinkedException(finding, exceptionId, riskAcceptedEvents, requi
   if (!Array.isArray(exception.finding_ids) || !exception.finding_ids.includes(finding.id)) {
     fail(`${finding.id}: exception ${exceptionId} must explicitly include the finding id`);
   }
-  if (exception.owner !== finding.owner) {
-    fail(`${finding.id}: exception owner must match finding owner`);
-  }
+  if (exception.owner !== finding.owner) fail(`${finding.id}: exception owner must match finding owner`);
   if (!approvedOwners.has(exception.approved_by)) {
     fail(`${finding.id}: exception approver ${exception.approved_by ?? "missing"} is not an approved governance owner`);
   }
-  if (exception.approved_by === exception.owner) {
-    fail(`${finding.id}: exception owner and approver must be different`);
-  }
+  if (exception.approved_by === exception.owner) fail(`${finding.id}: exception owner and approver must be different`);
   if (typeof exception.scope !== "string" || exception.scope.trim().length < 3) {
     fail(`${finding.id}: exception ${exceptionId} scope is required`);
   }
@@ -230,7 +260,6 @@ function validateLinkedException(finding, exceptionId, riskAcceptedEvents, requi
   if (requireActiveNow && expires < asOfDate) {
     fail(`${finding.id}: exception ${exceptionId} expired on ${exception.expires_on}`);
   }
-  return exception;
 }
 
 for (const finding of registry.findings) {
@@ -244,9 +273,7 @@ for (const finding of registry.findings) {
   }
 
   if (!allowedSources.has(finding.source)) fail(`${id}: unsupported source ${finding.source ?? "missing"}`);
-  if (!activeSources.has(finding.source)) {
-    fail(`${id}: source ${finding.source} is not active for operational findings`);
-  }
+  if (!activeSources.has(finding.source)) fail(`${id}: source ${finding.source} is not active for operational findings`);
   const control = controls.get(finding.control_id);
   if (!control) fail(`${id}: control ${finding.control_id ?? "missing"} is not in the active posture catalogue`);
   if (finding.severity !== control.severity) {
@@ -256,6 +283,7 @@ for (const finding of registry.findings) {
   if (!approvedOwners.has(finding.owner)) fail(`${id}: owner ${finding.owner ?? "missing"} is not approved`);
   if (!allowedStatuses.has(finding.status)) fail(`${id}: unsupported status ${finding.status ?? "missing"}`);
   if (!validTrackingUrl(finding.tracking_url)) fail(`${id}: tracking_url must reference a GitHub issue or pull request`);
+  if (finding.resolution !== undefined) fail(`${id}: legacy resolution field is not allowed; use resolution_attempts`);
 
   const detected = parseTimestamp(finding.detected_at, `${id}.detected_at`);
   if (detected > asOf) fail(`${id}: detected_at cannot be in the future`);
@@ -303,16 +331,14 @@ for (const finding of registry.findings) {
     } else {
       if (eventAt < previousAt) fail(`${id}: history timestamps must be chronological`);
       const allowedNext = transitions[previousStatus] ?? [];
-      if (!allowedNext.includes(event.status)) {
-        fail(`${id}: transition ${previousStatus} -> ${event.status} is not allowed`);
-      }
+      if (!allowedNext.includes(event.status)) fail(`${id}: transition ${previousStatus} -> ${event.status} is not allowed`);
     }
     if (event.status === "risk-accepted") {
       if (eventAt > due) fail(`${id}: risk acceptance cannot be approved after remediation SLA ${finding.remediation_due_at}`);
-      riskAcceptedEvents.push({ ...event, atDate: eventAt });
+      riskAcceptedEvents.push({ ...event, atDate: eventAt, index });
     }
-    if (event.status === "resolved") resolvedEvents.push({ ...event, atDate: eventAt });
-    if (event.status === "closed") closedEvents.push({ ...event, atDate: eventAt });
+    if (event.status === "resolved") resolvedEvents.push({ ...event, atDate: eventAt, index });
+    if (event.status === "closed") closedEvents.push({ ...event, atDate: eventAt, index });
     previousStatus = event.status;
     previousAt = eventAt;
   }
@@ -340,54 +366,96 @@ for (const finding of registry.findings) {
     fail(`${id}: ${finding.status} finding is overdue since ${finding.remediation_due_at}`);
   }
 
-  if (["resolved", "closed"].includes(finding.status)) {
-    if (!finding.resolution || typeof finding.resolution !== "object") fail(`${id}: ${finding.status} finding requires resolution`);
-    if (resolvedEvents.length === 0) fail(`${id}: ${finding.status} finding requires a resolved history event`);
-    const resolvedAt = parseTimestamp(finding.resolution.resolved_at, `${id}.resolution.resolved_at`);
-    if (resolvedAt > asOf) fail(`${id}: resolved_at cannot be in the future`);
-    const latestResolved = resolvedEvents.at(-1);
-    if (finding.resolution.resolved_at !== latestResolved.at) {
-      fail(`${id}: resolution.resolved_at must match the latest resolved history event`);
+  const attempts = finding.resolution_attempts;
+  if (resolvedEvents.length === 0) {
+    if (attempts !== undefined && (!Array.isArray(attempts) || attempts.length !== 0)) {
+      fail(`${id}: resolution_attempts must be absent or empty before the first resolved transition`);
     }
-    if (resolvedAt < detected) fail(`${id}: resolved_at cannot precede detected_at`);
-    requireString(finding.resolution.summary, `${id}.resolution.summary`, 20);
-    if (!Array.isArray(finding.resolution.remediation_evidence) || finding.resolution.remediation_evidence.length === 0) {
-      fail(`${id}: resolution.remediation_evidence is required`);
-    }
-    for (const evidence of finding.resolution.remediation_evidence) {
-      if (!validEvidenceRef(evidence)) fail(`${id}: invalid remediation evidence reference ${evidence}`);
+  } else {
+    if (!Array.isArray(attempts) || attempts.length !== resolvedEvents.length) {
+      fail(`${id}: resolution_attempts must contain exactly one entry per resolved history transition`);
     }
 
-    if (finding.status === "closed") {
-      if (closedEvents.length !== 1 || finding.history.at(-1)?.status !== "closed") {
-        fail(`${id}: closed finding requires exactly one terminal closed history event`);
+    for (const [index, attempt] of attempts.entries()) {
+      const label = `${id}.resolution_attempts[${index}]`;
+      if (!attempt || typeof attempt !== "object") fail(`${label} must be an object`);
+      const resolvedEvent = resolvedEvents[index];
+      if (attempt.resolved_at !== resolvedEvent.at) {
+        fail(`${label}.resolved_at must match resolved history event ${resolvedEvent.at}`);
       }
-      if (!Array.isArray(finding.resolution.closure_evidence) || finding.resolution.closure_evidence.length < minimumClosureEvidence) {
-        fail(`${id}: closed finding requires at least ${minimumClosureEvidence} closure evidence item(s)`);
+      const resolvedAt = parseTimestamp(attempt.resolved_at, `${label}.resolved_at`);
+      if (resolvedAt > asOf) fail(`${label}.resolved_at cannot be in the future`);
+      requireString(attempt.summary, `${label}.summary`, 20);
+      validateEvidenceList(attempt.remediation_evidence, `${label}.remediation_evidence`);
+      if (!allowedVerificationStatuses.has(attempt.verification_status)) {
+        fail(`${label}: unsupported verification_status ${attempt.verification_status ?? "missing"}`);
       }
-      for (const evidence of finding.resolution.closure_evidence) {
-        if (!validEvidenceRef(evidence)) fail(`${id}: invalid closure evidence reference ${evidence}`);
+
+      const nextHistoryEvent = finding.history[resolvedEvent.index + 1] ?? null;
+      if (attempt.verification_status === "pending") {
+        if (index !== attempts.length - 1 || finding.status !== "resolved") {
+          fail(`${label}: pending verification is valid only for the current resolved attempt`);
+        }
+        for (const field of ["verified_by", "verified_at", "verification_evidence", "closed_at", "closure_evidence"]) {
+          if (attempt[field] !== undefined) fail(`${label}: pending verification must not include ${field}`);
+        }
       }
-      if (!approvedOwners.has(finding.resolution.verified_by)) {
-        fail(`${id}: resolution.verified_by must be an approved owner`);
+
+      if (attempt.verification_status === "failed") {
+        const verifiedAt = validateVerifier(finding, attempt, label);
+        if (verifiedAt < resolvedAt) fail(`${label}.verified_at cannot precede resolved_at`);
+        validateEvidenceList(attempt.verification_evidence, `${label}.verification_evidence`);
+        if (!nextHistoryEvent || nextHistoryEvent.status !== "in-remediation") {
+          fail(`${label}: failed verification must transition the finding back to in-remediation`);
+        }
+        const reopenedAt = parseTimestamp(nextHistoryEvent.at, `${id}.history[${resolvedEvent.index + 1}].at`);
+        if (reopenedAt < verifiedAt) fail(`${label}: in-remediation transition cannot precede failed verification`);
+        for (const field of ["closed_at", "closure_evidence"]) {
+          if (attempt[field] !== undefined) fail(`${label}: failed verification must not include ${field}`);
+        }
       }
-      if (requireIndependentVerifier && finding.resolution.verified_by === finding.owner) {
-        fail(`${id}: closure verifier must be independent from the finding owner`);
+
+      if (attempt.verification_status === "passed") {
+        if (index !== attempts.length - 1 || finding.status !== "closed") {
+          fail(`${label}: passed verification is valid only for the terminal closed attempt`);
+        }
+        const verifiedAt = validateVerifier(finding, attempt, label);
+        if (verifiedAt < resolvedAt) fail(`${label}.verified_at cannot precede resolved_at`);
+        if (!nextHistoryEvent || nextHistoryEvent.status !== "closed") {
+          fail(`${label}: passed verification must transition directly to closed`);
+        }
+        const closedAt = parseTimestamp(attempt.closed_at, `${label}.closed_at`);
+        if (closedAt > asOf) fail(`${label}.closed_at cannot be in the future`);
+        if (closedAt < verifiedAt) fail(`${label}.closed_at cannot precede verified_at`);
+        if (attempt.closed_at !== nextHistoryEvent.at) {
+          fail(`${label}.closed_at must match the terminal closed history event`);
+        }
+        if (attempt.verified_by !== nextHistoryEvent.actor) {
+          fail(`${label}: terminal closed history actor must match verified_by`);
+        }
+        validateEvidenceList(attempt.closure_evidence, `${label}.closure_evidence`, minimumClosureEvidence);
       }
-      const verifiedAt = parseTimestamp(finding.resolution.verified_at, `${id}.resolution.verified_at`);
-      const closedAt = parseTimestamp(finding.resolution.closed_at, `${id}.resolution.closed_at`);
-      if (verifiedAt > asOf || closedAt > asOf) fail(`${id}: closure timestamps cannot be in the future`);
-      if (verifiedAt < resolvedAt) fail(`${id}: verified_at cannot precede resolved_at`);
-      if (closedAt < verifiedAt) fail(`${id}: closed_at cannot precede verified_at`);
-      if (finding.resolution.closed_at !== closedEvents[0].at) {
-        fail(`${id}: resolution.closed_at must match the terminal closed history event`);
-      }
-      if (finding.resolution.verified_by !== closedEvents[0].actor) {
-        fail(`${id}: terminal closed history actor must match resolution.verified_by`);
+
+      if (index < attempts.length - 1 && attempt.verification_status !== "failed") {
+        fail(`${label}: every non-terminal resolution attempt must record failed verification`);
       }
     }
-  } else if (finding.resolution !== undefined) {
-    fail(`${id}: unresolved finding must not carry resolution evidence`);
+
+    const lastAttempt = attempts.at(-1);
+    if (finding.status === "resolved" && lastAttempt.verification_status !== "pending") {
+      fail(`${id}: current resolved finding must have a pending final verification attempt`);
+    }
+    if (finding.status === "closed" && lastAttempt.verification_status !== "passed") {
+      fail(`${id}: closed finding must have a passed final verification attempt`);
+    }
+    if (["in-remediation", "risk-accepted"].includes(finding.status) && lastAttempt.verification_status !== "failed") {
+      fail(`${id}: reopened finding must retain a failed final verification attempt`);
+    }
+  }
+
+  if (closedEvents.length > 1) fail(`${id}: closed status is terminal and may appear only once`);
+  if (finding.status === "closed" && (closedEvents.length !== 1 || finding.history.at(-1)?.status !== "closed")) {
+    fail(`${id}: closed finding requires exactly one terminal closed history event`);
   }
 
   if (finding.status === "open") openCount += 1;
