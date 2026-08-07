@@ -88,6 +88,13 @@ const cases = [
     },
   },
   {
+    label: "active posture entry points at matrix control still marked Planned",
+    expectedError: "authoritative control-matrix status Planned is inconsistent with inclusion in the active posture baseline",
+    mutate: (catalogue) => {
+      catalogue.controls[0].id = "IAM-C04";
+    },
+  },
+  {
     label: "unknown country scope",
     expectedError: "contains unsupported value unknown-country",
     mutate: (catalogue) => {
