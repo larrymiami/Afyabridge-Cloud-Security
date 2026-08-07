@@ -14,6 +14,84 @@ function lineNumberAt(source, index) {
   return source.slice(0, index).split("\n").length;
 }
 
+/**
+ * Remove HCL line/block comments while preserving quoted strings and newline
+ * positions. This keeps source-based posture facts from being satisfied by a
+ * commented-out safe configuration while preserving useful line numbers.
+ */
+export function stripHclComments(source) {
+  let output = "";
+  let state = "normal";
+  let escaped = false;
+
+  for (let index = 0; index < source.length; index += 1) {
+    const character = source[index];
+    const next = source[index + 1];
+
+    if (state === "string") {
+      output += character;
+      if (escaped) {
+        escaped = false;
+      } else if (character === "\\") {
+        escaped = true;
+      } else if (character === '"') {
+        state = "normal";
+      }
+      continue;
+    }
+
+    if (state === "line-comment") {
+      if (character === "\n") {
+        output += "\n";
+        state = "normal";
+      } else {
+        output += " ";
+      }
+      continue;
+    }
+
+    if (state === "block-comment") {
+      if (character === "*" && next === "/") {
+        output += "  ";
+        index += 1;
+        state = "normal";
+      } else if (character === "\n") {
+        output += "\n";
+      } else {
+        output += " ";
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      output += character;
+      state = "string";
+      continue;
+    }
+    if (character === "#") {
+      output += " ";
+      state = "line-comment";
+      continue;
+    }
+    if (character === "/" && next === "/") {
+      output += "  ";
+      index += 1;
+      state = "line-comment";
+      continue;
+    }
+    if (character === "/" && next === "*") {
+      output += "  ";
+      index += 1;
+      state = "block-comment";
+      continue;
+    }
+
+    output += character;
+  }
+
+  return output;
+}
+
 async function walk(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
@@ -50,14 +128,17 @@ function collectMatches(root, files, pattern, valueIndex = 1) {
 }
 
 async function read(root, path) {
-  return readFile(join(root, path), "utf8");
+  return stripHclComments(await readFile(join(root, path), "utf8"));
 }
 
 export async function collectRepositoryPosture(root = DEFAULT_ROOT) {
   const terraformRoot = join(root, "infra/terraform");
   const terraformPaths = (await walk(terraformRoot)).filter((file) => file.endsWith(".tf"));
   const terraformFiles = await Promise.all(
-    terraformPaths.map(async (path) => ({ path, source: await readFile(path, "utf8") })),
+    terraformPaths.map(async (path) => ({
+      path,
+      source: stripHclComments(await readFile(path, "utf8")),
+    })),
   );
 
   const foundationVariables = await read(root, "infra/terraform/environments/foundation/variables.tf");
