@@ -4,7 +4,14 @@ import process from "node:process";
 const root = process.env.SUPPLY_CHAIN_REPO_ROOT ?? process.cwd();
 
 async function source(path) {
-  return readFile(`${root}/${path}`, "utf8");
+  try {
+    return await readFile(`${root}/${path}`, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      fail(`required repository file is missing: ${path}`);
+    }
+    throw error;
+  }
 }
 
 function fail(message) {
@@ -18,6 +25,10 @@ function artifactBlock(workflow, namePattern) {
   const match = workflow.match(pattern);
   if (!match) fail(`missing upload-artifact block for ${namePattern}`);
   return match[0];
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 const dependabot = await source(".github/dependabot.yml");
@@ -82,14 +93,67 @@ if (!/retention-days:\s*30/.test(gateEvidence)) {
   fail("security-gate evidence must be retained for 30 days");
 }
 
+const terraformRoots = [
+  "infra/terraform/bootstrap",
+  "infra/terraform/environments/foundation",
+  "infra/terraform/environments/network",
+  "infra/terraform/environments/workloads",
+  "infra/terraform/environments/federation",
+  "infra/terraform/environments/observability",
+  "infra/terraform/environments/edge",
+];
+
+for (const terraformRoot of terraformRoots) {
+  const lockfile = await source(`${terraformRoot}/.terraform.lock.hcl`);
+  if (!/provider\s+"registry\.terraform\.io\/hashicorp\/google"/.test(lockfile)) {
+    fail(`${terraformRoot} must lock the Google provider`);
+  }
+  if (!/^\s*version\s*=\s*"\d+\.\d+\.\d+"\s*$/m.test(lockfile)) {
+    fail(`${terraformRoot} provider lock must record an exact version`);
+  }
+  if (!/"h1:[^"]+"/.test(lockfile) || !/"zh:[0-9a-f]{64}"/.test(lockfile)) {
+    fail(`${terraformRoot} provider lock must retain package integrity hashes`);
+  }
+}
+
+const terraformFoundation = await source(
+  ".github/workflows/terraform-foundation.yml",
+);
+for (const terraformRoot of terraformRoots) {
+  const initPattern = new RegExp(
+    `terraform -chdir=${escapeRegex(terraformRoot)} init[^\\n]*-lockfile=readonly`,
+  );
+  if (!initPattern.test(terraformFoundation)) {
+    fail(`${terraformRoot} CI initialization must use the committed lockfile read-only`);
+  }
+}
+
+const terraformPlan = await source(
+  ".github/workflows/terraform-federation-plan.yml",
+);
+if (
+  !/terraform -chdir=infra\/terraform\/environments\/federation init[^\n]*-lockfile=readonly/.test(
+    terraformPlan,
+  )
+) {
+  fail("federation plan workflow must use the committed provider lockfile read-only");
+}
+
 const terraformApply = await source(
   ".github/workflows/terraform-federation-apply.yml",
 );
+if (
+  (terraformApply.match(
+    /terraform -chdir=infra\/terraform\/environments\/federation init[^\n]*-lockfile=readonly/g,
+  ) ?? []).length !== 2
+) {
+  fail("both federation apply jobs must use the committed provider lockfile read-only");
+}
 const planEvidence = artifactBlock(terraformApply, "federation-plan-");
 if (!/retention-days:\s*1/.test(planEvidence)) {
   fail("saved Terraform plans must remain short-lived at one day");
 }
 
 console.log(
-  "Supply-chain dependency risk, evidence retention, revocation, and compromise-test governance validated.",
+  "Supply-chain dependency risk, provider locks, evidence retention, revocation, and compromise-test governance validated.",
 );
