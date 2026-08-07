@@ -1,4 +1,4 @@
-FROM node:22.14.0-alpine AS build
+FROM node:22.23.1-alpine3.24@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS build
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -22,15 +22,14 @@ COPY scripts ./scripts
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @afyabridge/web build
 
-FROM node:22.14.0-alpine AS runtime
+FROM node:22.23.1-alpine3.24@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS runtime
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-RUN apk upgrade --no-cache \
-  && rm -rf \
+RUN rm -rf \
     /opt/yarn* \
     /root/.cache \
     /usr/local/lib/node_modules/npm \
