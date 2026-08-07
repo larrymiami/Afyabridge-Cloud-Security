@@ -29,9 +29,9 @@ concurrency:
 
 jobs:
   sbom:
-    name: Generate and validate SBOMs
+    name: Build and validate supply-chain evidence
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - name: Check out repository
@@ -63,10 +63,10 @@ jobs:
           )
           test "$violations" -eq 0
 
-      - name: Validate build, deploy, and runtime identity boundaries
+      - name: Validate build, signing, deploy, and runtime identity boundaries
         run: node scripts/validate-supply-chain-identities.mjs
 
-      - name: Prepare SBOM output directory
+      - name: Prepare supply-chain evidence directory
         run: mkdir -p supply-chain-evidence
 
       - name: Generate repository CycloneDX SBOM
@@ -121,7 +121,38 @@ jobs:
           test -s supply-chain-evidence/image.cdx.json
           test -s supply-chain-evidence/image.spdx.json
 
-      - name: Record SBOM digests
+      - name: Export exact web image artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_tar="supply-chain-evidence/afyabridge-web-${GITHUB_SHA}.tar"
+          docker save --output "$image_tar" "afyabridge-web:${GITHUB_SHA}"
+          test -s "$image_tar"
+
+      - name: Record build artifact metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_id="$(docker image inspect --format='{{.Id}}' "afyabridge-web:${GITHUB_SHA}")"
+          jq -n \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg commit "${GITHUB_SHA}" \
+            --arg ref "${GITHUB_REF}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            --arg run_attempt "${GITHUB_RUN_ATTEMPT}" \
+            --arg image_id "$image_id" \
+            --arg artifact "afyabridge-web-${GITHUB_SHA}.tar" \
+            '{
+              repository: $repository,
+              commit: $commit,
+              ref: $ref,
+              run_id: $run_id,
+              run_attempt: $run_attempt,
+              image_id: $image_id,
+              artifact: $artifact
+            }' > supply-chain-evidence/build-metadata.json
+
+      - name: Record artifact digests
         shell: bash
         run: |
           set -euo pipefail
@@ -130,25 +161,165 @@ jobs:
             supply-chain-evidence/source.spdx.json \
             supply-chain-evidence/image.cdx.json \
             supply-chain-evidence/image.spdx.json \
+            supply-chain-evidence/build-metadata.json \
+            "supply-chain-evidence/afyabridge-web-${GITHUB_SHA}.tar" \
             | tee supply-chain-evidence/SHA256SUMS
 
-      - name: Publish SBOM summary
+      - name: Publish build evidence summary
         shell: bash
         run: |
           {
-            echo "## Supply-chain SBOM evidence"
+            echo "## Supply-chain build evidence"
             echo
-            echo "Generated CycloneDX and SPDX JSON SBOMs for the repository dependency graph and built web image."
+            echo "Built the web image, exported the exact image bytes, and generated CycloneDX/SPDX SBOMs before any signing identity was granted."
             echo
             echo '```text'
             cat supply-chain-evidence/SHA256SUMS
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload SBOM evidence
+      - name: Upload unsigned build evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: supply-chain-sbom-${{ github.sha }}
+          name: supply-chain-build-${{ github.sha }}
           path: supply-chain-evidence/
+          if-no-files-found: error
+          retention-days: 30
+
+  provenance:
+    name: Sign and verify provenance
+    needs: sbom
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Download unsigned build evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: supply-chain-build-${{ github.sha }}
+          path: supply-chain-evidence
+
+      - name: Verify build evidence handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --check supply-chain-evidence/SHA256SUMS
+          test "$(jq -r '.repository' supply-chain-evidence/build-metadata.json)" = "${GITHUB_REPOSITORY}"
+          test "$(jq -r '.commit' supply-chain-evidence/build-metadata.json)" = "${GITHUB_SHA}"
+          test "$(jq -r '.ref' supply-chain-evidence/build-metadata.json)" = "${GITHUB_REF}"
+          test "$(jq -r '.run_id' supply-chain-evidence/build-metadata.json)" = "${GITHUB_RUN_ID}"
+          test "$(jq -r '.run_attempt' supply-chain-evidence/build-metadata.json)" = "${GITHUB_RUN_ATTEMPT}"
+          test "$(jq -r '.artifact' supply-chain-evidence/build-metadata.json)" = "afyabridge-web-${GITHUB_SHA}.tar"
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.0.6
+
+      - name: Sign exact image artifact with GitHub OIDC
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p supply-chain-signing-evidence
+          artifact="supply-chain-evidence/afyabridge-web-${GITHUB_SHA}.tar"
+          cosign sign-blob "$artifact" \
+            --bundle supply-chain-signing-evidence/afyabridge-web.sigstore.json \
+            --yes
+
+      - name: Verify Cosign signature and workflow identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact="supply-chain-evidence/afyabridge-web-${GITHUB_SHA}.tar"
+          certificate_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/supply-chain.yml@${GITHUB_REF}"
+          cosign verify-blob "$artifact" \
+            --bundle supply-chain-signing-evidence/afyabridge-web.sigstore.json \
+            --certificate-identity "$certificate_identity" \
+            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+            | tee supply-chain-signing-evidence/cosign-verification.txt
+
+      - name: Generate GitHub build provenance
+        id: provenance-attestation
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-checksums: supply-chain-evidence/SHA256SUMS
+
+      - name: Generate GitHub SBOM attestation
+        id: sbom-attestation
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4.2.1
+        with:
+          subject-path: supply-chain-evidence/afyabridge-web-${{ github.sha }}.tar
+          sbom-path: supply-chain-evidence/image.spdx.json
+
+      - name: Preserve GitHub attestation bundles
+        shell: bash
+        env:
+          PROVENANCE_BUNDLE: ${{ steps.provenance-attestation.outputs.bundle-path }}
+          SBOM_BUNDLE: ${{ steps.sbom-attestation.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp "$PROVENANCE_BUNDLE" supply-chain-signing-evidence/github-provenance.sigstore.json
+          cp "$SBOM_BUNDLE" supply-chain-signing-evidence/github-sbom.sigstore.json
+
+      - name: Verify GitHub provenance and SBOM attestations
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          artifact="supply-chain-evidence/afyabridge-web-${GITHUB_SHA}.tar"
+          signer_workflow="${GITHUB_REPOSITORY}/.github/workflows/supply-chain.yml"
+
+          gh attestation verify "$artifact" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$signer_workflow" \
+            --deny-self-hosted-runners \
+            --format json \
+            > supply-chain-signing-evidence/github-provenance-verification.json
+
+          gh attestation verify "$artifact" \
+            --repo "$GITHUB_REPOSITORY" \
+            --signer-workflow "$signer_workflow" \
+            --predicate-type "https://spdx.dev/Document/v2.3" \
+            --deny-self-hosted-runners \
+            --format json \
+            > supply-chain-signing-evidence/github-sbom-verification.json
+
+          jq -e 'length > 0' supply-chain-signing-evidence/github-provenance-verification.json >/dev/null
+          jq -e 'length > 0' supply-chain-signing-evidence/github-sbom-verification.json >/dev/null
+
+      - name: Record signing evidence digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum supply-chain-signing-evidence/* \
+            | tee supply-chain-signing-evidence/SHA256SUMS
+
+      - name: Publish provenance summary
+        shell: bash
+        run: |
+          {
+            echo "## Signed supply-chain provenance"
+            echo
+            echo "Verified the exact exported image artifact with both a keyless Sigstore Cosign signature and GitHub artifact attestations."
+            echo
+            echo "Signer workflow: \`${GITHUB_REPOSITORY}/.github/workflows/supply-chain.yml@${GITHUB_REF}\`"
+            echo
+            echo "Source execution SHA: \`${GITHUB_SHA}\`"
+            echo
+            echo '```text'
+            cat supply-chain-signing-evidence/SHA256SUMS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload signing and verification evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: supply-chain-provenance-${{ github.sha }}
+          path: supply-chain-signing-evidence/
           if-no-files-found: error
           retention-days: 30
