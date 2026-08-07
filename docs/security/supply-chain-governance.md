@@ -54,13 +54,25 @@ Different artifacts have different operational value and exposure:
 
 `validate-supply-chain-governance.mjs` fails if these reviewed retention contracts drift.
 
-Retention is not the same as trust. An artifact still inside its retention window can be revoked; an expired workflow artifact does not invalidate the cryptographic transparency evidence that may exist elsewhere.
+The 90-day provenance package includes the compact build context needed after the larger 30-day image archive expires: build metadata, the original build checksum manifest, the image SPDX SBOM, signing/attestation bundles, verification results, and revocation decisions.
+
+Retention is not the same as trust. An artifact still inside its retention window can be revoked; an expired workflow artifact does not invalidate cryptographic transparency evidence that may exist elsewhere.
+
+## Trusted-source signing policy
+
+Pull-request code is allowed to exercise the unprivileged build/SBOM path, but it is not allowed to obtain the supply-chain signing identity.
+
+The provenance job is gated to a `push` event on `refs/heads/main`. Its Cosign certificate identity is fixed to the `supply-chain.yml` workflow on `refs/heads/main`, and GitHub attestation verification additionally constrains the source ref and exact source commit digest.
+
+This boundary was strengthened during the reviewer pass for PR #15. The earlier implementation successfully demonstrated keyless signing mechanics on a pull-request merge ref, but that also showed an important trust problem: a PR-controlled workflow could legitimately sign under a `refs/pull/.../merge` workflow identity. The current design removes that privileged PR path. PR CI now validates that the signer remains main-only, while the first trusted-main signing run is expected after the reviewed change reaches `main`.
+
+Because `main` is the signing trust anchor, repository rules should require reviewed changes and prevent unreviewed direct pushes. Workflow code cannot itself prove those repository settings, so branch/ruleset configuration remains an operational prerequisite to verify separately.
 
 ## Revocation model
 
 ### Why a revocation layer exists
 
-Sigstore keyless certificates and GitHub artifact attestations prove that a trusted identity made a statement about artifact bytes. They do not answer the later question: **do we still trust that artifact, source, or workflow?**
+Sigstore keyless certificates and GitHub artifact attestations prove that an identity made a statement about artifact bytes. They do not answer the later question: **do we still trust that artifact, source, or workflow?**
 
 AfyaBridge therefore maintains `security/supply-chain-revocations.json` as an explicit deny registry. The registry can revoke:
 
@@ -74,16 +86,18 @@ Every entry requires a unique `SC-REV-YYYY-NNN` identifier, substantive reason, 
 
 The supply-chain build job validates the registry and snapshots it into the checksummed handoff evidence.
 
-The signing/provenance job then:
+On a trusted-main signing run, the signing/provenance job then:
 
-1. verifies the build handoff and confirms the checked-out registry matches the snapshot;
-2. checks the source commit, exact exported artifact digest, and workflow identity against the revocation registry **before** signing;
-3. performs Cosign and GitHub attestation verification; and
+1. verifies the build handoff and confirms the checked-out registry matches the checksummed snapshot;
+2. checks the exact `main` source commit, exported artifact digest, and fixed `main` workflow identity against the revocation registry **before** signing;
+3. performs Cosign and GitHub attestation verification, including source-ref and source-digest constraints; and
 4. checks the same trust subjects against the revocation registry again after cryptographic verification.
+
+The revocation checker records explicit `ALLOW <kind> <value>` evidence for each evaluated subject, making the trust decision reconstructable rather than recording only a count.
 
 This deliberately separates two questions:
 
-- **cryptographic validity:** was the artifact signed/attested by the expected workflow identity?
+- **cryptographic validity:** was the artifact signed/attested by the expected trusted-main workflow identity and exact source revision?
 - **current trust:** has that artifact, source, or workflow identity subsequently been denied by policy?
 
 Both must pass.
@@ -110,9 +124,13 @@ Revocation entries are deny records. Removing one is a security-sensitive policy
 The current negative scenarios include:
 
 - granting GitHub OIDC permission to the unprivileged build/SBOM job;
+- expanding the provenance job beyond trusted pushes to `refs/heads/main`;
 - granting registry write permission to the signing/provenance job;
 - rebuilding the artifact inside the privileged signing job;
 - removing the build-to-sign SHA-256 handoff verification;
+- weakening GitHub attestation source-ref verification;
+- replacing the fixed `main` signer identity with a dynamic execution ref;
+- allowing empty Cosign verification evidence;
 - replacing the dedicated Cloud Run runtime service-account binding;
 - shortening signed provenance evidence retention below the reviewed policy;
 - removing GitHub Actions from dependency monitoring; and
@@ -122,7 +140,7 @@ A clean control fixture and a non-revoked synthetic source must continue to pass
 
 ## Evidence produced by v0.9D
 
-The unsigned build evidence package now contains:
+The unsigned build evidence package contains:
 
 - identity-boundary validation output;
 - dependency/retention governance validation output;
@@ -133,17 +151,18 @@ The unsigned build evidence package now contains:
 - build metadata; and
 - SHA-256 checksums for the evidence and exported image archive.
 
-The signed provenance package additionally contains:
+On trusted-main runs, the signed provenance package additionally contains:
 
-- pre-sign and post-verification revocation decisions;
+- pre-sign and post-verification revocation decisions with exact evaluated subjects;
 - the Cosign Sigstore bundle;
-- Cosign workflow-identity verification output;
+- non-empty Cosign workflow-identity verification output;
 - GitHub build-provenance and SPDX SBOM attestation bundles;
-- GitHub attestation verification output; and
+- GitHub attestation verification output constrained to source ref and digest;
+- a copy of build metadata, the build checksum manifest, and image SPDX SBOM; and
 - SHA-256 checksums for the signing evidence.
 
 ## Current boundary
 
-v0.9D implements repository-level dependency monitoring policy, evidence-retention contracts, revocation decisions, and negative compromise tests. It does not yet provide a live Artifact Registry quarantine mechanism, Binary Authorization/deployment admission policy, live Cloud Run digest denial, or organization-wide artifact inventory/revocation service.
+v0.9D implements repository-level dependency monitoring policy, evidence-retention contracts, trusted-main signing policy, revocation decisions, and negative compromise tests. It does not yet provide a live Artifact Registry quarantine mechanism, Binary Authorization/deployment admission policy, live Cloud Run digest denial, organization-wide artifact inventory/revocation service, or independent verification of GitHub branch/ruleset settings.
 
-Those controls depend on the live Google Cloud deployment path and remain part of later deployment/runtime validation. The current revocation registry is therefore a repository trust-policy layer that complements — but does not replace — future registry and runtime enforcement.
+Those controls depend on repository operations and the live Google Cloud deployment path and remain part of later deployment/runtime validation. The current revocation registry is therefore a repository trust-policy layer that complements — but does not replace — future registry and runtime enforcement.
