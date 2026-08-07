@@ -38,7 +38,15 @@
       "closed_findings",
       "repository_failing_rules",
       "repository_blocking_findings"
-    ]
+    ],
+    "metric_directions": {
+      "active_findings": "lower-is-better",
+      "overdue_findings": "lower-is-better",
+      "risk_accepted_findings": "lower-is-better",
+      "closed_findings": "higher-is-better",
+      "repository_failing_rules": "lower-is-better",
+      "repository_blocking_findings": "lower-is-better"
+    }
   },
   "evidence_boundary": {
     "live_sources_required_for_operational_trends": true,
