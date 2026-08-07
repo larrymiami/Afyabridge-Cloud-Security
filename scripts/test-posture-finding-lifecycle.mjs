@@ -10,10 +10,6 @@ const root = resolve(process.cwd());
 const validator = join(root, "scripts/validate-posture-findings.mjs");
 const defaultAsOf = "2026-08-07T12:00:00Z";
 
-function clone(value) {
-  return structuredClone(value);
-}
-
 function fail(message) {
   throw new Error(`Posture finding lifecycle test failed: ${message}`);
 }
@@ -35,7 +31,7 @@ function validOpenFinding() {
       {
         status: "open",
         at: "2026-08-07T10:00:00Z",
-        actor: "cloud-security",
+        actor: "security-automation",
         note: "Finding created from the governed repository posture check."
       }
     ]
@@ -110,6 +106,41 @@ function validClosedFinding() {
   return finding;
 }
 
+function validClosedAfterRiskAcceptance() {
+  const finding = validRiskAcceptedFinding();
+  finding.status = "closed";
+  finding.history.push(
+    {
+      status: "in-remediation",
+      at: "2026-08-07T11:10:00Z",
+      actor: "cloud-security",
+      note: "Risk acceptance ended and remediation work resumed."
+    },
+    {
+      status: "resolved",
+      at: "2026-08-07T11:30:00Z",
+      actor: "cloud-security",
+      note: "Remediation completed after the temporary risk acceptance."
+    },
+    {
+      status: "closed",
+      at: "2026-08-07T11:50:00Z",
+      actor: "security-operations",
+      note: "Independent verification passed and historical risk acceptance was retained."
+    }
+  );
+  finding.resolution = {
+    resolved_at: "2026-08-07T11:30:00Z",
+    summary: "The temporarily accepted edge finding was remediated and independently verified after acceptance ended.",
+    remediation_evidence: ["repo:docs/evidence/example-remediation.md"],
+    verified_by: "security-operations",
+    verified_at: "2026-08-07T11:45:00Z",
+    closed_at: "2026-08-07T11:50:00Z",
+    closure_evidence: ["https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/1"]
+  };
+  return finding;
+}
+
 async function run(findings, exceptions = [], asOf = defaultAsOf) {
   const directory = await mkdtemp(join(tmpdir(), "afyabridge-finding-lifecycle-"));
   try {
@@ -121,12 +152,7 @@ async function run(findings, exceptions = [], asOf = defaultAsOf) {
     ]);
     return await execFileAsync(
       process.execPath,
-      [
-        validator,
-        "--findings", findingsPath,
-        "--exceptions", exceptionsPath,
-        "--as-of", asOf,
-      ],
+      [validator, "--findings", findingsPath, "--exceptions", exceptionsPath, "--as-of", asOf],
       { cwd: root, env: { ...process.env, POSTURE_REPO_ROOT: root } },
     );
   } finally {
@@ -161,6 +187,12 @@ await expectPass("empty finding registry", []);
 await expectPass("valid open finding", [validOpenFinding()]);
 await expectPass("valid risk-accepted finding with active linked exception", [validRiskAcceptedFinding()], [validException()]);
 await expectPass("valid independently verified closed finding", [validClosedFinding()]);
+await expectPass(
+  "closed finding retains historical expired exception evidence",
+  [validClosedAfterRiskAcceptance()],
+  [validException()],
+  "2026-09-01T12:00:00Z",
+);
 
 {
   const finding = validOpenFinding();
@@ -174,6 +206,26 @@ await expectPass("valid independently verified closed finding", [validClosedFind
   await expectFail("unapproved owner rejected", "owner unknown-team is not approved", [finding]);
 }
 
+{
+  const finding = validOpenFinding();
+  finding.source = "security-command-center";
+  delete finding.rule_id;
+  await expectFail("planned Security Command Center source cannot masquerade as operational", "source security-command-center is not active for operational findings", [finding]);
+}
+
+{
+  const finding = validOpenFinding();
+  finding.source = "terraform-drift";
+  delete finding.rule_id;
+  await expectFail("live Terraform drift source remains inactive before remote-state validation", "source terraform-drift is not active for operational findings", [finding]);
+}
+
+{
+  const finding = validOpenFinding();
+  finding.history[0].actor = "unknown-actor";
+  await expectFail("unapproved lifecycle actor rejected", "actor unknown-actor is not allowed", [finding]);
+}
+
 await expectFail(
   "overdue open finding rejected",
   "open finding is overdue since 2026-08-14T10:00:00Z",
@@ -185,7 +237,13 @@ await expectFail(
 {
   const finding = validRiskAcceptedFinding();
   delete finding.exception_id;
-  await expectFail("risk acceptance without exception rejected", "risk-accepted finding requires exception_id", [finding]);
+  await expectFail("risk acceptance without exception rejected", "finding history contains risk acceptance but exception_id is missing", [finding]);
+}
+
+{
+  const finding = validOpenFinding();
+  finding.exception_id = "SEC-EX-2026-001";
+  await expectFail("exception linkage without risk-acceptance history rejected", "exception_id requires at least one risk-accepted history event", [finding], [validException()]);
 }
 
 {
@@ -203,9 +261,43 @@ await expectFail(
 }
 
 {
+  const finding = validRiskAcceptedFinding();
+  const exception = validException();
+  exception.gate = "terraform-drift";
+  await expectFail("exception gate must match finding source", "repository-posture findings require cloud-posture exceptions, got terraform-drift", [finding], [exception]);
+}
+
+{
+  const finding = validRiskAcceptedFinding();
+  const exception = validException();
+  exception.approved_by = "external-approver";
+  await expectFail("exception approver must be governed", "exception approver external-approver is not an approved governance owner", [finding], [exception]);
+}
+
+{
+  const finding = validRiskAcceptedFinding();
+  const exception = validException();
+  exception.created_on = "2026-08-08";
+  await expectFail("future-created exception cannot authorize current risk", "exception SEC-EX-2026-001 cannot be created in the future", [finding], [exception]);
+}
+
+{
+  const finding = validRiskAcceptedFinding();
+  finding.history[1].at = "2026-08-15T10:00:00Z";
+  await expectFail(
+    "risk acceptance cannot retroactively erase an SLA breach",
+    "risk acceptance cannot be approved after remediation SLA 2026-08-14T10:00:00Z",
+    [finding],
+    [validException()],
+    "2026-08-15T10:30:00Z",
+  );
+}
+
+{
   const finding = validOpenFinding();
   finding.control_id = "IAM-C02";
   finding.rule_id = "POSTURE-IAM-002";
+  finding.severity = "high";
   finding.title = "Dedicated runtime identity finding requires remediation";
   finding.exception_id = "SEC-EX-2026-001";
   finding.status = "risk-accepted";
@@ -258,6 +350,24 @@ await expectFail(
 }
 
 {
+  const finding = validClosedFinding();
+  finding.resolution.resolved_at = "2026-08-07T11:10:00Z";
+  await expectFail("resolution timestamp must match lifecycle history", "resolution.resolved_at must match the latest resolved history event", [finding]);
+}
+
+{
+  const finding = validClosedFinding();
+  finding.resolution.closed_at = "2026-08-07T11:46:00Z";
+  await expectFail("closure timestamp must match terminal history", "resolution.closed_at must match the terminal closed history event", [finding]);
+}
+
+{
+  const finding = validClosedFinding();
+  finding.history.at(-1).actor = "application-security";
+  await expectFail("closure actor must match independent verifier", "terminal closed history actor must match resolution.verified_by", [finding]);
+}
+
+{
   const finding = validOpenFinding();
   finding.remediation_due_at = "2026-08-15T10:00:01Z";
   await expectFail("severity SLA cannot be extended silently", "remediation_due_at exceeds high SLA of 168 hours", [finding]);
@@ -270,4 +380,18 @@ await expectFail(
   await expectFail("impossible finding timestamp rejected", "detected_at is invalid", [finding]);
 }
 
-console.log("Posture finding lifecycle controls validated: 18 scenarios passed.");
+{
+  const finding = validOpenFinding();
+  finding.id = "CSPM-FND-2025-001";
+  await expectFail("finding id year must match detection year", "finding id year must match detected_at year", [finding]);
+}
+
+{
+  const finding = validOpenFinding();
+  finding.detected_at = "2026-08-08T10:00:00Z";
+  finding.history[0].at = finding.detected_at;
+  finding.remediation_due_at = "2026-08-15T10:00:00Z";
+  await expectFail("future-dated finding rejected", "detected_at cannot be in the future", [finding]);
+}
+
+console.log("Posture finding lifecycle controls validated: 31 scenarios passed.");
