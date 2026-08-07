@@ -174,7 +174,7 @@ export async function collectRepositoryPosture(root = DEFAULT_ROOT) {
         rotation_configured: has(kms, /rotation_period\s*=\s*each\.value\.rotation_period/),
         rotation_default_configured: has(
           kmsVariables,
-          /rotation_period\s*=\s*optional\(string,\s*"\d+s"\)/,
+          /rotation_period\s*=\s*optional\(string,\s*"7776000s"\)/,
         ),
         destroy_delay_configured: has(
           kms,
@@ -182,7 +182,7 @@ export async function collectRepositoryPosture(root = DEFAULT_ROOT) {
         ),
         destroy_delay_default_configured: has(
           kmsVariables,
-          /destroy_scheduled_duration\s*=\s*optional\(string,\s*"\d+s"\)/,
+          /destroy_scheduled_duration\s*=\s*optional\(string,\s*"2592000s"\)/,
         ),
         prevent_destroy: has(kms, /lifecycle\s*\{[\s\S]*?prevent_destroy\s*=\s*true[\s\S]*?\}/),
       },
