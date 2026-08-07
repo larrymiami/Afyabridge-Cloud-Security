@@ -12,22 +12,24 @@ variable "default_region" {
 variable "country_edges" {
   description = "Country-isolated regional public edge definitions keyed exactly by ke, gh, and za."
   type = map(object({
-    edge_project_id        = string
-    network_project_id     = string
-    region                 = string
-    network_id             = string
-    proxy_only_subnet_name = string
-    proxy_only_subnet_cidr = string
-    cloud_run_service_name = string
-    name_prefix            = string
-    network_tier           = optional(string, "STANDARD")
+    edge_project_id         = string
+    network_project_id      = string
+    region                  = string
+    network_id              = string
+    proxy_only_subnet_name  = string
+    proxy_only_subnet_cidr  = string
+    cloud_run_service_name  = string
+    name_prefix             = string
+    network_tier            = optional(string, "STANDARD")
     backend_timeout_seconds = optional(number, 30)
     backend_log_sample_rate = optional(number, 1)
   }))
 
   validation {
-    condition = length(setsubtract(toset(keys(var.country_edges)), toset(["ke", "gh", "za"]))) == 0 &&
+    condition = (
+      length(setsubtract(toset(keys(var.country_edges)), toset(["ke", "gh", "za"]))) == 0 &&
       length(setsubtract(toset(["ke", "gh", "za"]), toset(keys(var.country_edges)))) == 0
+    )
     error_message = "country_edges must contain exactly ke, gh, and za."
   }
 
