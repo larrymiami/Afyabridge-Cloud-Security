@@ -128,6 +128,67 @@
       "expires_on"
     ]
   },
+  "finding_lifecycle": {
+    "registry": "security/posture-findings.json",
+    "initial_status": "open",
+    "allowed_statuses": [
+      "open",
+      "in-remediation",
+      "risk-accepted",
+      "resolved",
+      "closed"
+    ],
+    "allowed_sources": [
+      "repository-posture",
+      "terraform-drift",
+      "security-command-center",
+      "manual-review"
+    ],
+    "required_fields": [
+      "id",
+      "source",
+      "control_id",
+      "severity",
+      "title",
+      "owner",
+      "status",
+      "detected_at",
+      "remediation_due_at",
+      "tracking_url",
+      "history"
+    ],
+    "allowed_transitions": {
+      "open": [
+        "in-remediation",
+        "risk-accepted",
+        "resolved"
+      ],
+      "in-remediation": [
+        "risk-accepted",
+        "resolved"
+      ],
+      "risk-accepted": [
+        "in-remediation",
+        "resolved"
+      ],
+      "resolved": [
+        "closed",
+        "in-remediation"
+      ],
+      "closed": []
+    },
+    "risk_acceptance": {
+      "requires_active_exception": true,
+      "allowed_exception_gates": [
+        "cloud-posture",
+        "terraform-drift"
+      ]
+    },
+    "closure": {
+      "require_independent_verifier": true,
+      "minimum_evidence_items": 1
+    }
+  },
   "live_cloud_sources": [
     {
       "source": "cloud-asset-inventory",
