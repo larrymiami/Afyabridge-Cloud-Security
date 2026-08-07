@@ -141,6 +141,7 @@ for (const candidate of candidates) {
       `${candidate.kind} ${candidate.value} is revoked by ${match.id}: ${match.reason}`,
     );
   }
+  console.log(`ALLOW ${candidate.kind} ${candidate.value}`);
 }
 
 console.log(
