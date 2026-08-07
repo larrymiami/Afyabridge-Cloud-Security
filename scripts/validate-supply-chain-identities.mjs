@@ -22,6 +22,22 @@ const unprivilegedWorkflows = [
   ".github/workflows/terraform-foundation.yml",
 ];
 
+const deploymentWorkflows = [
+  ".github/workflows/terraform-federation-plan.yml",
+  ".github/workflows/terraform-federation-apply.yml",
+];
+
+for (const path of [...unprivilegedWorkflows, ...deploymentWorkflows]) {
+  const text = await source(path);
+  if (/runs-on:\s*ubuntu-latest/.test(text)) {
+    fail(`${path} must use an explicit Ubuntu runner family`);
+  }
+  const runnerRefs = [...text.matchAll(/runs-on:\s*(ubuntu-[^\s]+)/g)].map((match) => match[1]);
+  if (runnerRefs.some((runner) => runner !== "ubuntu-24.04")) {
+    fail(`${path} must use the reviewed ubuntu-24.04 runner family`);
+  }
+}
+
 for (const path of unprivilegedWorkflows) {
   const text = await source(path);
   if (/^\s*id-token:\s*write\s*$/m.test(text)) {
@@ -30,6 +46,11 @@ for (const path of unprivilegedWorkflows) {
   if (/google-github-actions\/auth@/m.test(text)) {
     fail(`${path} must not authenticate to Google Cloud`);
   }
+}
+
+const applicationWorkflow = await source(".github/workflows/application-baseline.yml");
+if (!/image:\s*postgres:[^\s]+@sha256:[0-9a-f]{64}/i.test(applicationWorkflow)) {
+  fail("Application CI PostgreSQL service must be pinned by digest");
 }
 
 const planPath = ".github/workflows/terraform-federation-plan.yml";
@@ -70,6 +91,20 @@ for (const path of [planPath, applyPath]) {
   }
 }
 
+const dockerfile = await source("apps/web/Dockerfile");
+const baseImages = [...dockerfile.matchAll(/^FROM\s+([^\s]+)/gm)].map((match) => match[1]);
+if (baseImages.length < 2) {
+  fail("Web image must retain separate build and runtime stages");
+}
+for (const image of baseImages) {
+  if (!/@sha256:[0-9a-f]{64}$/i.test(image)) {
+    fail(`Docker base image must be pinned by digest: ${image}`);
+  }
+}
+if (/\bapk\s+upgrade\b/.test(dockerfile)) {
+  fail("Runtime image must not mutate its base package set with apk upgrade");
+}
+
 const cloudRunModule = await source("infra/terraform/modules/cloud-run-service/main.tf");
 if (!/resource\s+"google_service_account"\s+"runtime"/.test(cloudRunModule)) {
   fail("Cloud Run module must create a dedicated runtime service account");
@@ -81,4 +116,4 @@ if (/GCP_TERRAFORM_(?:PLAN|APPLY)_SERVICE_ACCOUNT/.test(cloudRunModule)) {
   fail("Cloud Run runtime module must not reference GitHub deployment identities");
 }
 
-console.log("Supply-chain identity boundaries validated.");
+console.log("Supply-chain identity and build boundaries validated.");
