@@ -1,0 +1,37 @@
+quota_project_id = "afyabridge-shared-network-admin"
+default_region   = "africa-south1"
+
+country_edges = {
+  ke = {
+    edge_project_id        = "afyabridge-ke-prod-app"
+    network_project_id     = "afyabridge-ke-net-host"
+    region                 = "africa-south1"
+    network_id             = "projects/afyabridge-ke-net-host/global/networks/afyabridge-ke-shared-vpc"
+    proxy_only_subnet_name = "afyabridge-ke-edge-proxy-africa-south1"
+    proxy_only_subnet_cidr = "10.10.208.0/23"
+    cloud_run_service_name = "afyabridge-ke-prod-api"
+    name_prefix            = "afyabridge-ke-prod-edge"
+  }
+
+  gh = {
+    edge_project_id        = "afyabridge-gh-prod-app"
+    network_project_id     = "afyabridge-gh-net-host"
+    region                 = "africa-south1"
+    network_id             = "projects/afyabridge-gh-net-host/global/networks/afyabridge-gh-shared-vpc"
+    proxy_only_subnet_name = "afyabridge-gh-edge-proxy-africa-south1"
+    proxy_only_subnet_cidr = "10.20.208.0/23"
+    cloud_run_service_name = "afyabridge-gh-prod-api"
+    name_prefix            = "afyabridge-gh-prod-edge"
+  }
+
+  za = {
+    edge_project_id        = "afyabridge-za-prod-app"
+    network_project_id     = "afyabridge-za-net-host"
+    region                 = "africa-south1"
+    network_id             = "projects/afyabridge-za-net-host/global/networks/afyabridge-za-shared-vpc"
+    proxy_only_subnet_name = "afyabridge-za-edge-proxy-africa-south1"
+    proxy_only_subnet_cidr = "10.30.208.0/23"
+    cloud_run_service_name = "afyabridge-za-prod-api"
+    name_prefix            = "afyabridge-za-prod-edge"
+  }
+}
