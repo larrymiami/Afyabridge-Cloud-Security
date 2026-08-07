@@ -39,9 +39,15 @@ function validOpenFinding() {
   };
 }
 
-function validException(findingId = "CSPM-FND-2026-001") {
+function validException({
+  id = "SEC-EX-2026-001",
+  findingId = "CSPM-FND-2026-001",
+  createdOn = "2026-08-07",
+  expiresOn = "2026-08-21"
+} = {}) {
   return {
-    id: "SEC-EX-2026-001",
+    id,
+    status: "active",
     gate: "cloud-posture",
     scope: `${findingId} / NET-C04`,
     rationale: "Temporary risk acceptance while the reviewed remediation is implemented and independently verified.",
@@ -52,9 +58,16 @@ function validException(findingId = "CSPM-FND-2026-001") {
     approved_by: "security-operations",
     tracking_url: "https://github.com/larrymiami/Afyabridge-Cloud-Security/issues/2",
     finding_ids: [findingId],
-    created_on: "2026-08-07",
-    expires_on: "2026-08-21"
+    created_on: createdOn,
+    expires_on: expiresOn
   };
+}
+
+function historicalException(options = {}) {
+  const exception = validException(options);
+  exception.status = "historical";
+  exception.retired_on = options.retiredOn ?? exception.created_on;
+  return exception;
 }
 
 function pendingAttempt(resolvedAt) {
@@ -91,14 +104,14 @@ function passedAttempt(resolvedAt, closedAt, verifiedAt) {
   };
 }
 
-function validRiskAcceptedFinding() {
+function validRiskAcceptedFinding(exceptionId = "SEC-EX-2026-001") {
   const finding = validOpenFinding();
   finding.status = "risk-accepted";
-  finding.exception_id = "SEC-EX-2026-001";
   finding.history.push({
     status: "risk-accepted",
     at: "2026-08-07T11:00:00Z",
     actor: "security-operations",
+    exception_id: exceptionId,
     note: "Time-bounded risk acceptance approved with compensating controls."
   });
   return finding;
@@ -233,6 +246,34 @@ function validClosedAfterRiskAcceptance() {
   return finding;
 }
 
+function validRepeatedRiskAcceptanceFinding() {
+  const finding = validOpenFinding();
+  finding.status = "risk-accepted";
+  finding.history.push(
+    {
+      status: "risk-accepted",
+      at: "2026-08-07T11:00:00Z",
+      actor: "security-operations",
+      exception_id: "SEC-EX-2026-001",
+      note: "First time-bounded risk acceptance approved."
+    },
+    {
+      status: "in-remediation",
+      at: "2026-08-07T12:00:00Z",
+      actor: "cloud-security",
+      note: "First risk acceptance retired and remediation resumed."
+    },
+    {
+      status: "risk-accepted",
+      at: "2026-08-08T10:00:00Z",
+      actor: "security-operations",
+      exception_id: "SEC-EX-2026-002",
+      note: "Second independently tracked risk acceptance approved."
+    }
+  );
+  return finding;
+}
+
 async function run(findings, exceptions = [], asOf = defaultAsOf) {
   const directory = await mkdtemp(join(tmpdir(), "afyabridge-finding-lifecycle-"));
   try {
@@ -285,10 +326,19 @@ await expectPass("failed verification reopens finding without losing the attempt
 await expectPass("valid independently verified closed finding", [validClosedFinding()]);
 await expectPass("second remediation attempt closes after first verification failure", [validClosedAfterFailedAttempt()]);
 await expectPass(
-  "closed finding retains historical expired exception evidence",
+  "closed finding retains retired historical exception evidence",
   [validClosedAfterRiskAcceptance()],
-  [validException()],
+  [historicalException()],
   "2026-09-01T12:00:00Z",
+);
+await expectPass(
+  "separate risk-acceptance periods retain separate exception records",
+  [validRepeatedRiskAcceptanceFinding()],
+  [
+    historicalException({ id: "SEC-EX-2026-001", retiredOn: "2026-08-07" }),
+    validException({ id: "SEC-EX-2026-002", createdOn: "2026-08-08", expiresOn: "2026-08-20" })
+  ],
+  "2026-08-08T12:00:00Z",
 );
 
 {
@@ -327,13 +377,22 @@ await expectFail(
 );
 {
   const finding = validRiskAcceptedFinding();
-  delete finding.exception_id;
-  await expectFail("risk acceptance without exception rejected", "finding history contains risk acceptance but exception_id is missing", [finding]);
+  delete finding.history[1].exception_id;
+  await expectFail("risk acceptance without event exception rejected", "risk-accepted history event requires exception_id", [finding], [validException()]);
+}
+{
+  const finding = validRiskAcceptedFinding();
+  finding.exception_id = "SEC-EX-2026-001";
+  await expectFail("legacy top-level exception linkage rejected", "legacy top-level exception_id is not allowed", [finding], [validException()]);
 }
 {
   const finding = validOpenFinding();
-  finding.exception_id = "SEC-EX-2026-001";
-  await expectFail("exception linkage without risk-acceptance history rejected", "exception_id requires at least one risk-accepted history event", [finding], [validException()]);
+  finding.history[0].exception_id = "SEC-EX-2026-001";
+  await expectFail("exception linkage allowed only on risk events", "exception_id is allowed only on risk-accepted events", [finding], [validException()]);
+}
+{
+  const finding = validRiskAcceptedFinding("SEC-EX-2026-999");
+  await expectFail("risk event must reference existing exception", "exception SEC-EX-2026-999 does not exist", [finding], [validException()]);
 }
 {
   const finding = validRiskAcceptedFinding();
@@ -377,17 +436,38 @@ await expectFail(
   );
 }
 {
+  const finding = validRiskAcceptedFinding();
+  const exception = historicalException();
+  await expectFail("current risk acceptance cannot use historical exception", "current risk acceptance requires active exception SEC-EX-2026-001", [finding], [exception]);
+}
+{
+  const finding = validRiskAcceptedFinding();
+  const exception = historicalException({ createdOn: "2026-08-01", retiredOn: "2026-08-06" });
+  await expectFail("historical exception must cover acceptance timestamp", "was not active when risk was accepted at 2026-08-07T11:00:00Z", [finding], [exception]);
+}
+{
+  const finding = validRiskAcceptedFinding();
+  const exception = validException({ createdOn: "2026-08-07", expiresOn: "2026-08-21" });
+  await expectFail(
+    "expired current exception cannot keep risk accepted",
+    "exception SEC-EX-2026-001 expired on 2026-08-21",
+    [finding],
+    [exception],
+    "2026-08-22T12:00:00Z",
+  );
+}
+{
   const finding = validOpenFinding();
   finding.control_id = "IAM-C02";
   finding.rule_id = "POSTURE-IAM-002";
   finding.severity = "high";
   finding.title = "Dedicated runtime identity finding requires remediation";
-  finding.exception_id = "SEC-EX-2026-001";
   finding.status = "risk-accepted";
   finding.history.push({
     status: "risk-accepted",
     at: "2026-08-07T11:00:00Z",
     actor: "security-operations",
+    exception_id: "SEC-EX-2026-001",
     note: "Attempted risk acceptance for a control that forbids exceptions."
   });
   const exception = validException();
