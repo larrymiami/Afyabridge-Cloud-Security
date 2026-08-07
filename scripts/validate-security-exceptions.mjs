@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import process from "node:process";
 
-const registryPath = process.argv[2] ?? "security/exceptions.json";
+const registryPath = process.argv[2] && !process.argv[2].startsWith("--")
+  ? process.argv[2]
+  : "security/exceptions.json";
+const asOfIndex = process.argv.indexOf("--as-of");
+const asOfValue = asOfIndex >= 0 ? process.argv[asOfIndex + 1] : null;
 const allowedGates = new Set([
   "secret-scanning",
   "dependency-review",
@@ -36,7 +40,7 @@ if (registry.schema_version !== 1) fail("schema_version must be 1");
 if (!Array.isArray(registry.exceptions)) fail("exceptions must be an array");
 
 const ids = new Set();
-const today = new Date();
+const today = asOfValue ? parseDate(asOfValue, "--as-of", "validator") : new Date();
 today.setUTCHours(0, 0, 0, 0);
 
 for (const exception of registry.exceptions) {
