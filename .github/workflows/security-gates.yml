@@ -19,7 +19,7 @@ concurrency:
 jobs:
   secrets:
     name: Secret scanning
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -37,7 +37,7 @@ jobs:
   dependency-review:
     name: Dependency and license review
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -56,7 +56,7 @@ jobs:
 
   codeql:
     name: CodeQL (${{ matrix.language }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -89,7 +89,7 @@ jobs:
 
   iac:
     name: IaC misconfiguration scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -110,7 +110,7 @@ jobs:
 
   packages:
     name: Package vulnerability scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
 
     steps:
@@ -132,7 +132,7 @@ jobs:
 
   container:
     name: Container image scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
 
     steps:
@@ -157,7 +157,7 @@ jobs:
 
   api-contract:
     name: API contract validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -171,7 +171,7 @@ jobs:
 
   policy-as-code:
     name: OPA policy as code
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
       OPA_VERSION: v1.17.0
@@ -223,7 +223,7 @@ jobs:
 
   exceptions:
     name: Security exception validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
 
     steps:
@@ -248,7 +248,7 @@ jobs:
       - api-contract
       - policy-as-code
       - exceptions
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
