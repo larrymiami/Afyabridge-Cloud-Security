@@ -22,3 +22,19 @@ output "url_map_id" {
   description = "Regional URL map ID for the future HTTPS target proxy."
   value       = google_compute_region_url_map.https.id
 }
+
+output "cloud_armor_policy" {
+  description = "Regional Cloud Armor policy and rollout state."
+  value = {
+    id          = google_compute_region_security_policy.edge.id
+    name        = google_compute_region_security_policy.edge.name
+    preview     = var.cloud_armor_preview
+    sensitivity = var.cloud_armor_waf_sensitivity
+    waf_rules   = sort(keys(local.cloud_armor_waf_rules))
+    rate_limit = {
+      count            = var.cloud_armor_rate_limit_count
+      interval_seconds = var.cloud_armor_rate_limit_interval_seconds
+      key              = "IP"
+    }
+  }
+}
