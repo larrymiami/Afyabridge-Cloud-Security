@@ -1,8 +1,12 @@
 import { readFile } from "node:fs/promises";
-import { validateCommittedHistoryBoundary } from "./validate-posture-reporting.mjs";
+import {
+  validateCommittedHistoryBoundary,
+  validateReportingSeverityBaseline,
+} from "./validate-posture-reporting.mjs";
 
 const governance = JSON.parse(await readFile("security/cloud-posture-governance.json", "utf8"));
 const history = JSON.parse(await readFile("security/posture-metrics-history.json", "utf8"));
+const catalogue = JSON.parse(await readFile("security/cloud-posture-controls.json", "utf8"));
 
 let scenarios = 0;
 function expect(condition, name) {
@@ -30,12 +34,40 @@ fabricated.snapshots.push({
     repository_blocking_findings: 0
   }
 });
-let rejected = false;
+let rejectedHistory = false;
 try {
   validateCommittedHistoryBoundary({ governance, history: fabricated });
 } catch {
-  rejected = true;
+  rejectedHistory = true;
 }
-expect(rejected, "deny: repository PR cannot seed invented trend history");
+expect(rejectedHistory, "deny: repository PR cannot seed invented trend history");
 
-console.log(`Posture reporting committed-history controls validated: ${scenarios} scenarios passed.`);
+validateReportingSeverityBaseline({ catalogue });
+passSeverity("allow: reviewed posture severities remain anchored");
+
+const downgradedHigh = structuredClone(catalogue);
+downgradedHigh.controls.find((control) => control.id === "MON-C01").severity = "medium";
+let rejectedHighDowngrade = false;
+try {
+  validateReportingSeverityBaseline({ catalogue: downgradedHigh });
+} catch {
+  rejectedHighDowngrade = true;
+}
+expect(rejectedHighDowngrade, "deny: high control cannot be downgraded below merge-blocking severity");
+
+const downgradedCritical = structuredClone(catalogue);
+downgradedCritical.controls.find((control) => control.id === "IAM-C01").severity = "high";
+let rejectedCriticalDowngrade = false;
+try {
+  validateReportingSeverityBaseline({ catalogue: downgradedCritical });
+} catch {
+  rejectedCriticalDowngrade = true;
+}
+expect(rejectedCriticalDowngrade, "deny: critical control severity cannot be silently reduced");
+
+function passSeverity(name) {
+  scenarios += 1;
+  console.log(`PASS ${name}`);
+}
+
+console.log(`Posture reporting governance-boundary controls validated: ${scenarios} scenarios passed.`);
