@@ -311,7 +311,7 @@
       },
       "implementation_refs": [
         {"path": ".github/workflows/terraform-federation-plan.yml", "kind": "workflow"},
-        {"path": "docs/runbooks/federation-bootstrap.md", "kind": "runbook"}
+        {"path": "docs/runbooks/federated-deployment-bootstrap.md", "kind": "runbook"}
       ],
       "detection": [
         {"method": "terraform-plan-drift", "status": "planned"},
