@@ -10,6 +10,15 @@ const outputPath = path.resolve(
     ? process.argv[outputIndex + 1]
     : ".security/policy-input.json",
 );
+const SKIPPED_DIRECTORIES = new Set([
+  ".git",
+  ".next",
+  ".terraform",
+  ".turbo",
+  "coverage",
+  "dist",
+  "node_modules",
+]);
 
 async function walk(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -18,7 +27,9 @@ async function walk(directory) {
   for (const entry of entries) {
     const absolute = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      files.push(...(await walk(absolute)));
+      if (!SKIPPED_DIRECTORIES.has(entry.name)) {
+        files.push(...(await walk(absolute)));
+      }
     } else if (entry.isFile()) {
       files.push(absolute);
     }
@@ -146,13 +157,7 @@ const workflows = await Promise.all(
   workflowFiles.map(async (file) => workflowFacts(file, await readFile(file, "utf8"))),
 );
 
-const dockerfiles = (await walk(root))
-  .filter(
-    (file) =>
-      path.basename(file) === "Dockerfile" &&
-      !repositoryPath(file).startsWith(".git/") &&
-      !repositoryPath(file).includes("/node_modules/"),
-  );
+const dockerfiles = (await walk(root)).filter((file) => path.basename(file) === "Dockerfile");
 const docker = await Promise.all(
   dockerfiles.map(async (file) => dockerFacts(file, await readFile(file, "utf8"))),
 );
