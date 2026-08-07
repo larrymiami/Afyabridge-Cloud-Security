@@ -56,6 +56,7 @@
       "supported_sources": ["repository"],
       "assertions": [
         {"fact": "network.cloud_run_public_ingress_rejected", "operator": "equals", "expected": true, "message": "The Cloud Run module must reject unrestricted public ingress."},
+        {"fact": "network.cloud_run_public_invokers_rejected", "operator": "equals", "expected": true, "message": "The Cloud Run module must reject allUsers and allAuthenticatedUsers invokers."},
         {"fact": "edge.cloud_armor_attached", "operator": "equals", "expected": true, "message": "The regional backend must remain attached to Cloud Armor."},
         {"fact": "edge.waf_deny_rules_configured", "operator": "equals", "expected": true, "message": "The edge must retain deny-mode preconfigured WAF rules."},
         {"fact": "edge.rate_limit_configured", "operator": "equals", "expected": true, "message": "The edge must retain a request-throttling rule."},
@@ -73,8 +74,10 @@
       "claim_scope": "repository-desired-state",
       "supported_sources": ["repository"],
       "assertions": [
-        {"fact": "kms.rotation_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain an explicit rotation period."},
-        {"fact": "kms.destroy_delay_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain an explicit scheduled-destruction delay."},
+        {"fact": "kms.rotation_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain an explicit rotation-period field."},
+        {"fact": "kms.rotation_default_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain a non-null reviewed rotation default."},
+        {"fact": "kms.destroy_delay_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain an explicit scheduled-destruction field."},
+        {"fact": "kms.destroy_delay_default_configured", "operator": "equals", "expected": true, "message": "Managed keys must retain a non-null reviewed scheduled-destruction default."},
         {"fact": "kms.prevent_destroy", "operator": "equals", "expected": true, "message": "Terraform must continue preventing accidental key destruction."}
       ]
     },
