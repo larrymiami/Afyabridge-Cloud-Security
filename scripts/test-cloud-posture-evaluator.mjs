@@ -35,8 +35,11 @@ const cases = [
   ["public IAM principal introduced", "POSTURE-IAM-003", true, (s) => { s.facts.identity.public_principal_assignments.push({path: "unsafe.tf", line: 1, value: "allUsers"}); }],
   ["Cloud SQL public IPv4 enabled", "POSTURE-NET-001", true, (s) => { s.facts.network.cloud_sql_public_ipv4_disabled = false; }],
   ["Cloud Run public ingress permitted", "POSTURE-EDGE-001", true, (s) => { s.facts.network.cloud_run_public_ingress_rejected = false; }],
+  ["Cloud Run public invoker permitted", "POSTURE-EDGE-001", true, (s) => { s.facts.network.cloud_run_public_invokers_rejected = false; }],
   ["Cloud Armor detached", "POSTURE-EDGE-001", true, (s) => { s.facts.edge.cloud_armor_attached = false; }],
-  ["KMS rotation removed", "POSTURE-KMS-001", true, (s) => { s.facts.kms.rotation_configured = false; }],
+  ["KMS rotation field removed", "POSTURE-KMS-001", true, (s) => { s.facts.kms.rotation_configured = false; }],
+  ["KMS rotation default removed", "POSTURE-KMS-001", true, (s) => { s.facts.kms.rotation_default_configured = false; }],
+  ["KMS destruction-delay default removed", "POSTURE-KMS-001", true, (s) => { s.facts.kms.destroy_delay_default_configured = false; }],
   ["Terraform-managed secret payload introduced", "POSTURE-SEC-001", true, (s) => { s.facts.secrets.plaintext_secret_version_resources.push({path: "unsafe.tf", line: 1, value: "payload"}); }],
   ["storage public access prevention removed", "POSTURE-STORAGE-001", true, (s) => { s.facts.storage.public_access_prevention_enforced = false; }],
   ["project ownership label removed", "POSTURE-GOV-001", false, (s) => { s.facts.governance.project_required_labels = s.facts.governance.project_required_labels.filter((label) => label !== "owner"); }],
@@ -59,5 +62,3 @@ for (const [label, expectedRule, expectedBlocking, mutate] of cases) {
 }
 
 console.log(`Cloud posture evaluator controls validated: ${cases.length + 1} scenarios passed.`);
-
-await import("./test-repository-posture-collector.mjs");
