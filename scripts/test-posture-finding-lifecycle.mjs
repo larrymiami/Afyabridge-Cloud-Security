@@ -9,6 +9,7 @@ const execFileAsync = promisify(execFile);
 const root = resolve(process.cwd());
 const validator = join(root, "scripts/validate-posture-findings.mjs");
 const defaultAsOf = "2026-08-07T12:00:00Z";
+let scenarioCount = 0;
 
 function fail(message) {
   throw new Error(`Posture finding lifecycle test failed: ${message}`);
@@ -56,6 +57,40 @@ function validException(findingId = "CSPM-FND-2026-001") {
   };
 }
 
+function pendingAttempt(resolvedAt) {
+  return {
+    resolved_at: resolvedAt,
+    summary: "The reviewed configuration was remediated and is awaiting independent verification before closure.",
+    remediation_evidence: ["repo:docs/evidence/example-remediation.md"],
+    verification_status: "pending"
+  };
+}
+
+function failedAttempt(resolvedAt, verifiedAt = "2026-08-07T11:05:00Z") {
+  return {
+    resolved_at: resolvedAt,
+    summary: "The first remediation attempt was completed but independent verification identified remaining control gaps.",
+    remediation_evidence: ["repo:docs/evidence/example-remediation.md"],
+    verification_status: "failed",
+    verified_by: "security-operations",
+    verified_at: verifiedAt,
+    verification_evidence: ["https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/1"]
+  };
+}
+
+function passedAttempt(resolvedAt, closedAt, verifiedAt) {
+  return {
+    resolved_at: resolvedAt,
+    summary: "The reviewed configuration was remediated and independent verification confirmed the control now passes.",
+    remediation_evidence: ["repo:docs/evidence/example-remediation.md"],
+    verification_status: "passed",
+    verified_by: "security-operations",
+    verified_at: verifiedAt,
+    closed_at: closedAt,
+    closure_evidence: ["https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/1"]
+  };
+}
+
 function validRiskAcceptedFinding() {
   const finding = validOpenFinding();
   finding.status = "risk-accepted";
@@ -66,6 +101,54 @@ function validRiskAcceptedFinding() {
     actor: "security-operations",
     note: "Time-bounded risk acceptance approved with compensating controls."
   });
+  return finding;
+}
+
+function validResolvedFinding() {
+  const finding = validOpenFinding();
+  finding.status = "resolved";
+  finding.history.push(
+    {
+      status: "in-remediation",
+      at: "2026-08-07T10:30:00Z",
+      actor: "cloud-security",
+      note: "Remediation work started under the assigned finding owner."
+    },
+    {
+      status: "resolved",
+      at: "2026-08-07T11:00:00Z",
+      actor: "cloud-security",
+      note: "Remediation completed and submitted for independent verification."
+    }
+  );
+  finding.resolution_attempts = [pendingAttempt("2026-08-07T11:00:00Z")];
+  return finding;
+}
+
+function validReopenedFinding() {
+  const finding = validOpenFinding();
+  finding.status = "in-remediation";
+  finding.history.push(
+    {
+      status: "in-remediation",
+      at: "2026-08-07T10:20:00Z",
+      actor: "cloud-security",
+      note: "Initial remediation work started."
+    },
+    {
+      status: "resolved",
+      at: "2026-08-07T10:50:00Z",
+      actor: "cloud-security",
+      note: "Initial remediation was submitted for verification."
+    },
+    {
+      status: "in-remediation",
+      at: "2026-08-07T11:10:00Z",
+      actor: "security-operations",
+      note: "Independent verification failed and the finding was returned to remediation."
+    }
+  );
+  finding.resolution_attempts = [failedAttempt("2026-08-07T10:50:00Z")];
   return finding;
 }
 
@@ -92,17 +175,32 @@ function validClosedFinding() {
       note: "Independent verification completed and the finding was closed."
     }
   );
-  finding.resolution = {
-    resolved_at: "2026-08-07T11:15:00Z",
-    summary: "The reviewed edge configuration was remediated and the posture control now passes again.",
-    remediation_evidence: ["repo:docs/evidence/example-remediation.md"],
-    verified_by: "security-operations",
-    verified_at: "2026-08-07T11:40:00Z",
-    closed_at: "2026-08-07T11:45:00Z",
-    closure_evidence: [
-      "https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/1"
-    ]
-  };
+  finding.resolution_attempts = [
+    passedAttempt("2026-08-07T11:15:00Z", "2026-08-07T11:45:00Z", "2026-08-07T11:40:00Z")
+  ];
+  return finding;
+}
+
+function validClosedAfterFailedAttempt() {
+  const finding = validReopenedFinding();
+  finding.status = "closed";
+  finding.history.push(
+    {
+      status: "resolved",
+      at: "2026-08-07T11:30:00Z",
+      actor: "cloud-security",
+      note: "Second remediation attempt completed after addressing failed verification evidence."
+    },
+    {
+      status: "closed",
+      at: "2026-08-07T11:50:00Z",
+      actor: "security-operations",
+      note: "Second attempt passed independent verification and the finding was closed."
+    }
+  );
+  finding.resolution_attempts.push(
+    passedAttempt("2026-08-07T11:30:00Z", "2026-08-07T11:50:00Z", "2026-08-07T11:45:00Z")
+  );
   return finding;
 }
 
@@ -129,15 +227,9 @@ function validClosedAfterRiskAcceptance() {
       note: "Independent verification passed and historical risk acceptance was retained."
     }
   );
-  finding.resolution = {
-    resolved_at: "2026-08-07T11:30:00Z",
-    summary: "The temporarily accepted edge finding was remediated and independently verified after acceptance ended.",
-    remediation_evidence: ["repo:docs/evidence/example-remediation.md"],
-    verified_by: "security-operations",
-    verified_at: "2026-08-07T11:45:00Z",
-    closed_at: "2026-08-07T11:50:00Z",
-    closure_evidence: ["https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/1"]
-  };
+  finding.resolution_attempts = [
+    passedAttempt("2026-08-07T11:30:00Z", "2026-08-07T11:50:00Z", "2026-08-07T11:45:00Z")
+  ];
   return finding;
 }
 
@@ -161,6 +253,7 @@ async function run(findings, exceptions = [], asOf = defaultAsOf) {
 }
 
 async function expectPass(label, findings, exceptions = [], asOf = defaultAsOf) {
+  scenarioCount += 1;
   try {
     await run(findings, exceptions, asOf);
     console.log(`PASS allow: ${label}`);
@@ -170,6 +263,7 @@ async function expectPass(label, findings, exceptions = [], asOf = defaultAsOf) 
 }
 
 async function expectFail(label, expectedError, findings, exceptions = [], asOf = defaultAsOf) {
+  scenarioCount += 1;
   try {
     await run(findings, exceptions, asOf);
   } catch (error) {
@@ -186,7 +280,10 @@ async function expectFail(label, expectedError, findings, exceptions = [], asOf 
 await expectPass("empty finding registry", []);
 await expectPass("valid open finding", [validOpenFinding()]);
 await expectPass("valid risk-accepted finding with active linked exception", [validRiskAcceptedFinding()], [validException()]);
+await expectPass("valid resolved finding awaiting verification", [validResolvedFinding()]);
+await expectPass("failed verification reopens finding without losing the attempt", [validReopenedFinding()]);
 await expectPass("valid independently verified closed finding", [validClosedFinding()]);
+await expectPass("second remediation attempt closes after first verification failure", [validClosedAfterFailedAttempt()]);
 await expectPass(
   "closed finding retains historical expired exception evidence",
   [validClosedAfterRiskAcceptance()],
@@ -199,33 +296,28 @@ await expectPass(
   finding.severity = "medium";
   await expectFail("severity downgrade rejected", "severity must match control NET-C04 severity high", [finding]);
 }
-
 {
   const finding = validOpenFinding();
   finding.owner = "unknown-team";
   await expectFail("unapproved owner rejected", "owner unknown-team is not approved", [finding]);
 }
-
 {
   const finding = validOpenFinding();
   finding.source = "security-command-center";
   delete finding.rule_id;
   await expectFail("planned Security Command Center source cannot masquerade as operational", "source security-command-center is not active for operational findings", [finding]);
 }
-
 {
   const finding = validOpenFinding();
   finding.source = "terraform-drift";
   delete finding.rule_id;
   await expectFail("live Terraform drift source remains inactive before remote-state validation", "source terraform-drift is not active for operational findings", [finding]);
 }
-
 {
   const finding = validOpenFinding();
   finding.history[0].actor = "unknown-actor";
   await expectFail("unapproved lifecycle actor rejected", "actor unknown-actor is not allowed", [finding]);
 }
-
 await expectFail(
   "overdue open finding rejected",
   "open finding is overdue since 2026-08-14T10:00:00Z",
@@ -233,54 +325,46 @@ await expectFail(
   [],
   "2026-08-15T10:00:01Z",
 );
-
 {
   const finding = validRiskAcceptedFinding();
   delete finding.exception_id;
   await expectFail("risk acceptance without exception rejected", "finding history contains risk acceptance but exception_id is missing", [finding]);
 }
-
 {
   const finding = validOpenFinding();
   finding.exception_id = "SEC-EX-2026-001";
   await expectFail("exception linkage without risk-acceptance history rejected", "exception_id requires at least one risk-accepted history event", [finding], [validException()]);
 }
-
 {
   const finding = validRiskAcceptedFinding();
   const exception = validException();
   exception.finding_ids = ["CSPM-FND-2026-999"];
   await expectFail("risk acceptance must explicitly link the finding", "must explicitly include the finding id", [finding], [exception]);
 }
-
 {
   const finding = validRiskAcceptedFinding();
   const exception = validException();
   exception.expires_on = "2026-09-20";
   await expectFail("control-specific exception lifetime enforced", "exceeds control maximum of 30 days", [finding], [exception]);
 }
-
 {
   const finding = validRiskAcceptedFinding();
   const exception = validException();
   exception.gate = "terraform-drift";
   await expectFail("exception gate must match finding source", "repository-posture findings require cloud-posture exceptions, got terraform-drift", [finding], [exception]);
 }
-
 {
   const finding = validRiskAcceptedFinding();
   const exception = validException();
   exception.approved_by = "external-approver";
   await expectFail("exception approver must be governed", "exception approver external-approver is not an approved governance owner", [finding], [exception]);
 }
-
 {
   const finding = validRiskAcceptedFinding();
   const exception = validException();
   exception.created_on = "2026-08-08";
   await expectFail("future-created exception cannot authorize current risk", "exception SEC-EX-2026-001 cannot be created in the future", [finding], [exception]);
 }
-
 {
   const finding = validRiskAcceptedFinding();
   finding.history[1].at = "2026-08-15T10:00:00Z";
@@ -292,7 +376,6 @@ await expectFail(
     "2026-08-15T10:30:00Z",
   );
 }
-
 {
   const finding = validOpenFinding();
   finding.control_id = "IAM-C02";
@@ -311,7 +394,6 @@ await expectFail(
   exception.scope = `${finding.id} / IAM-C02`;
   await expectFail("non-exceptionable control cannot be risk accepted", "control IAM-C02 does not allow risk acceptance", [finding], [exception]);
 }
-
 {
   const finding = validOpenFinding();
   finding.status = "closed";
@@ -321,71 +403,109 @@ await expectFail(
     actor: "security-operations",
     note: "Invalid direct transition used for negative lifecycle validation."
   });
-  finding.resolution = validClosedFinding().resolution;
   await expectFail("invalid open-to-closed transition rejected", "transition open -> closed is not allowed", [finding]);
 }
-
 {
   const finding = validOpenFinding();
   finding.status = "in-remediation";
   await expectFail("history must match current status", "final history status must match current status in-remediation", [finding]);
 }
-
 {
   const finding = validOpenFinding();
   finding.rule_id = "POSTURE-IAM-001";
   await expectFail("repository rule/control mismatch rejected", "rule POSTURE-IAM-001 maps to IAM-C01, not NET-C04", [finding]);
 }
-
+{
+  const finding = validOpenFinding();
+  finding.resolution_attempts = [pendingAttempt("2026-08-07T11:00:00Z")];
+  await expectFail("resolution attempt before resolved transition rejected", "resolution_attempts must be absent or empty before the first resolved transition", [finding]);
+}
+{
+  const finding = validResolvedFinding();
+  delete finding.resolution_attempts;
+  await expectFail("resolved transition requires preserved resolution attempt", "resolution_attempts must contain exactly one entry per resolved history transition", [finding]);
+}
+{
+  const finding = validResolvedFinding();
+  finding.resolution_attempts[0].verification_status = "passed";
+  finding.resolution_attempts[0].verified_by = "security-operations";
+  finding.resolution_attempts[0].verified_at = "2026-08-07T11:10:00Z";
+  finding.resolution_attempts[0].closed_at = "2026-08-07T11:20:00Z";
+  finding.resolution_attempts[0].closure_evidence = ["https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/1"];
+  await expectFail("resolved finding cannot claim passed verification before closure", "passed verification is valid only for the terminal closed attempt", [finding]);
+}
+{
+  const finding = validReopenedFinding();
+  finding.resolution_attempts[0].verification_status = "pending";
+  delete finding.resolution_attempts[0].verified_by;
+  delete finding.resolution_attempts[0].verified_at;
+  delete finding.resolution_attempts[0].verification_evidence;
+  await expectFail("reopened finding must retain failed verification", "pending verification is valid only for the current resolved attempt", [finding]);
+}
+{
+  const finding = validReopenedFinding();
+  finding.resolution_attempts[0].verification_evidence = [];
+  await expectFail("failed verification requires evidence", "verification_evidence requires at least 1 evidence item", [finding]);
+}
+{
+  const finding = validReopenedFinding();
+  finding.resolution_attempts[0].verified_by = finding.owner;
+  await expectFail("finding owner cannot self-verify a failed attempt", "verifier must be independent from the finding owner", [finding]);
+}
+{
+  const finding = validClosedAfterFailedAttempt();
+  finding.resolution_attempts[0].verification_status = "pending";
+  delete finding.resolution_attempts[0].verified_by;
+  delete finding.resolution_attempts[0].verified_at;
+  delete finding.resolution_attempts[0].verification_evidence;
+  await expectFail("non-terminal resolution attempts must record verification failure", "pending verification is valid only for the current resolved attempt", [finding]);
+}
 {
   const finding = validClosedFinding();
-  finding.resolution.closure_evidence = [];
-  await expectFail("closed finding requires closure evidence", "closed finding requires at least 1 closure evidence item", [finding]);
+  finding.resolution_attempts[0].closure_evidence = [];
+  await expectFail("closed finding requires closure evidence", "closure_evidence requires at least 1 evidence item", [finding]);
 }
-
 {
   const finding = validClosedFinding();
-  finding.resolution.verified_by = finding.owner;
-  await expectFail("finding owner cannot self-verify closure", "closure verifier must be independent from the finding owner", [finding]);
+  finding.resolution_attempts[0].verified_by = finding.owner;
+  await expectFail("finding owner cannot self-verify closure", "verifier must be independent from the finding owner", [finding]);
 }
-
 {
   const finding = validClosedFinding();
-  finding.resolution.resolved_at = "2026-08-07T11:10:00Z";
-  await expectFail("resolution timestamp must match lifecycle history", "resolution.resolved_at must match the latest resolved history event", [finding]);
+  finding.resolution_attempts[0].resolved_at = "2026-08-07T11:10:00Z";
+  await expectFail("resolution timestamp must match lifecycle history", "resolved_at must match resolved history event 2026-08-07T11:15:00Z", [finding]);
 }
-
 {
   const finding = validClosedFinding();
-  finding.resolution.closed_at = "2026-08-07T11:46:00Z";
-  await expectFail("closure timestamp must match terminal history", "resolution.closed_at must match the terminal closed history event", [finding]);
+  finding.resolution_attempts[0].closed_at = "2026-08-07T11:46:00Z";
+  await expectFail("closure timestamp must match terminal history", "closed_at must match the terminal closed history event", [finding]);
 }
-
 {
   const finding = validClosedFinding();
   finding.history.at(-1).actor = "application-security";
-  await expectFail("closure actor must match independent verifier", "terminal closed history actor must match resolution.verified_by", [finding]);
+  await expectFail("closure actor must match independent verifier", "terminal closed history actor must match verified_by", [finding]);
 }
-
+{
+  const finding = validClosedFinding();
+  finding.resolution = { summary: "legacy" };
+  await expectFail("ambiguous legacy resolution object rejected", "legacy resolution field is not allowed; use resolution_attempts", [finding]);
+}
 {
   const finding = validOpenFinding();
   finding.remediation_due_at = "2026-08-15T10:00:01Z";
   await expectFail("severity SLA cannot be extended silently", "remediation_due_at exceeds high SLA of 168 hours", [finding]);
 }
-
 {
   const finding = validOpenFinding();
   finding.detected_at = "2026-02-31T10:00:00Z";
   finding.history[0].at = finding.detected_at;
   await expectFail("impossible finding timestamp rejected", "detected_at is invalid", [finding]);
 }
-
 {
   const finding = validOpenFinding();
   finding.id = "CSPM-FND-2025-001";
   await expectFail("finding id year must match detection year", "finding id year must match detected_at year", [finding]);
 }
-
 {
   const finding = validOpenFinding();
   finding.detected_at = "2026-08-08T10:00:00Z";
@@ -394,4 +514,4 @@ await expectFail(
   await expectFail("future-dated finding rejected", "detected_at cannot be in the future", [finding]);
 }
 
-console.log("Posture finding lifecycle controls validated: 31 scenarios passed.");
+console.log(`Posture finding lifecycle controls validated: ${scenarioCount} scenarios passed.`);
