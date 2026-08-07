@@ -114,3 +114,44 @@ variable "cloud_armor_rate_limit_interval_seconds" {
     error_message = "cloud_armor_rate_limit_interval_seconds must use a Cloud Armor-supported interval."
   }
 }
+
+variable "dns_project_id" {
+  description = "Project that owns the public Cloud DNS managed zone for this country edge."
+  type        = string
+}
+
+variable "dns_zone_name" {
+  description = "Cloud DNS managed-zone resource name for the country public subdomain."
+  type        = string
+}
+
+variable "dns_zone_dns_name" {
+  description = "DNS suffix delegated to the country public zone, including the trailing dot."
+  type        = string
+
+  validation {
+    condition     = endswith(var.dns_zone_dns_name, ".")
+    error_message = "dns_zone_dns_name must end with a trailing dot."
+  }
+}
+
+variable "hostname" {
+  description = "Public HTTPS hostname routed to the country edge, without a trailing dot."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$", var.hostname)) && !endswith(var.hostname, ".")
+    error_message = "hostname must be a lowercase DNS name without a trailing dot."
+  }
+}
+
+variable "dns_ttl" {
+  description = "TTL in seconds for public A and certificate-authorization DNS records."
+  type        = number
+  default     = 300
+
+  validation {
+    condition     = var.dns_ttl >= 60 && var.dns_ttl <= 86400
+    error_message = "dns_ttl must be between 60 and 86400 seconds."
+  }
+}
