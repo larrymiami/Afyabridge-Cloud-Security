@@ -235,6 +235,15 @@ jobs:
       - name: Validate exception registry
         run: node scripts/validate-security-exceptions.mjs security/exceptions.json
 
+      - name: Run security exception governance tests
+        run: node scripts/test-security-exception-governance.mjs
+
+      - name: Validate posture finding lifecycle
+        run: node scripts/validate-posture-findings.mjs
+
+      - name: Run posture finding lifecycle tests
+        run: node scripts/test-posture-finding-lifecycle.mjs
+
       - name: Validate cloud posture catalogue
         run: node scripts/validate-cloud-posture-catalogue.mjs
 

@@ -1,7 +1,11 @@
 import { readFile } from "node:fs/promises";
 import process from "node:process";
 
-const registryPath = process.argv[2] ?? "security/exceptions.json";
+const registryPath = process.argv[2] && !process.argv[2].startsWith("--")
+  ? process.argv[2]
+  : "security/exceptions.json";
+const asOfIndex = process.argv.indexOf("--as-of");
+const asOfValue = asOfIndex >= 0 ? process.argv[asOfIndex + 1] : null;
 const allowedGates = new Set([
   "secret-scanning",
   "dependency-review",
@@ -12,7 +16,10 @@ const allowedGates = new Set([
   "container-scan",
   "api-contract",
   "policy-as-code",
+  "cloud-posture",
+  "terraform-drift",
 ]);
+const allowedStatuses = new Set(["active", "historical"]);
 
 function fail(message) {
   throw new Error(`Security exception validation failed: ${message}`);
@@ -23,7 +30,9 @@ function parseDate(value, field, id) {
     fail(`${id}: ${field} must use YYYY-MM-DD`);
   }
   const date = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) fail(`${id}: ${field} is invalid`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    fail(`${id}: ${field} is invalid`);
+  }
   return date;
 }
 
@@ -32,8 +41,10 @@ if (registry.schema_version !== 1) fail("schema_version must be 1");
 if (!Array.isArray(registry.exceptions)) fail("exceptions must be an array");
 
 const ids = new Set();
-const today = new Date();
+const today = asOfValue ? parseDate(asOfValue, "--as-of", "validator") : new Date();
 today.setUTCHours(0, 0, 0, 0);
+let activeCount = 0;
+let historicalCount = 0;
 
 for (const exception of registry.exceptions) {
   const id = exception?.id;
@@ -41,6 +52,7 @@ for (const exception of registry.exceptions) {
   if (ids.has(id)) fail(`${id}: duplicate id`);
   ids.add(id);
 
+  if (!allowedStatuses.has(exception.status)) fail(`${id}: status must be active or historical`);
   if (!allowedGates.has(exception.gate)) fail(`${id}: unsupported gate ${exception.gate ?? "missing"}`);
   if (typeof exception.scope !== "string" || exception.scope.trim().length < 3) fail(`${id}: scope is required`);
   if (typeof exception.rationale !== "string" || exception.rationale.trim().length < 20) fail(`${id}: rationale must be substantive`);
@@ -51,11 +63,42 @@ for (const exception of registry.exceptions) {
   if (exception.owner === exception.approved_by) fail(`${id}: owner and approver must be different`);
   if (typeof exception.tracking_url !== "string" || !/^https:\/\/github\.com\/[^/]+\/[^/]+\/(issues|pull)\/\d+$/.test(exception.tracking_url)) fail(`${id}: tracking_url must reference a GitHub issue or pull request`);
 
+  if (exception.finding_ids !== undefined) {
+    if (!Array.isArray(exception.finding_ids) || exception.finding_ids.length === 0) {
+      fail(`${id}: finding_ids must be a non-empty array when provided`);
+    }
+    const findingIds = new Set();
+    for (const findingId of exception.finding_ids) {
+      if (!/^CSPM-FND-\d{4}-\d{3}$/.test(findingId ?? "")) {
+        fail(`${id}: finding_ids entries must match CSPM-FND-YYYY-NNN`);
+      }
+      if (findingIds.has(findingId)) fail(`${id}: duplicate finding id ${findingId}`);
+      findingIds.add(findingId);
+    }
+  }
+
   const created = parseDate(exception.created_on, "created_on", id);
   const expires = parseDate(exception.expires_on, "expires_on", id);
+  if (Number(id.slice(7, 11)) !== created.getUTCFullYear()) {
+    fail(`${id}: exception id year must match created_on year`);
+  }
   const lifetimeDays = Math.round((expires - created) / 86400000);
   if (lifetimeDays < 1 || lifetimeDays > 90) fail(`${id}: exception lifetime must be between 1 and 90 days`);
-  if (expires < today) fail(`${id}: exception expired on ${exception.expires_on}`);
+  if (created > today) fail(`${id}: exception cannot be created in the future`);
+
+  if (exception.status === "active") {
+    if (exception.retired_on !== undefined) fail(`${id}: active exception must not include retired_on`);
+    if (expires < today) fail(`${id}: active exception expired on ${exception.expires_on}; retire it as historical`);
+    activeCount += 1;
+  } else {
+    const retired = parseDate(exception.retired_on, "retired_on", id);
+    if (retired < created) fail(`${id}: retired_on cannot precede created_on`);
+    if (retired > expires) fail(`${id}: retired_on cannot follow expires_on`);
+    if (retired > today) fail(`${id}: retired_on cannot be in the future`);
+    historicalCount += 1;
+  }
 }
 
-console.log(`Security exception registry validated: ${registry.exceptions.length} active exception(s).`);
+console.log(
+  `Security exception registry validated: ${registry.exceptions.length} exception(s); active=${activeCount}, historical=${historicalCount}.`,
+);

@@ -116,8 +116,13 @@
   "exception_policy": {
     "registry": "security/exceptions.json",
     "maximum_days": 90,
+    "allowed_statuses": [
+      "active",
+      "historical"
+    ],
     "required_fields": [
       "id",
+      "status",
       "scope",
       "rationale",
       "compensating_controls",
@@ -126,7 +131,98 @@
       "tracking_url",
       "created_on",
       "expires_on"
-    ]
+    ],
+    "historical_status": {
+      "requires_retired_on": true
+    }
+  },
+  "finding_lifecycle": {
+    "registry": "security/posture-findings.json",
+    "initial_status": "open",
+    "allowed_statuses": [
+      "open",
+      "in-remediation",
+      "risk-accepted",
+      "resolved",
+      "closed"
+    ],
+    "allowed_sources": [
+      "repository-posture",
+      "terraform-drift",
+      "security-command-center",
+      "manual-review"
+    ],
+    "active_sources": [
+      "repository-posture",
+      "manual-review"
+    ],
+    "allowed_actors": [
+      "security-automation",
+      "cloud-security",
+      "platform",
+      "application-security",
+      "security-operations"
+    ],
+    "required_fields": [
+      "id",
+      "source",
+      "control_id",
+      "severity",
+      "title",
+      "owner",
+      "status",
+      "detected_at",
+      "remediation_due_at",
+      "tracking_url",
+      "history"
+    ],
+    "allowed_transitions": {
+      "open": [
+        "in-remediation",
+        "risk-accepted",
+        "resolved"
+      ],
+      "in-remediation": [
+        "risk-accepted",
+        "resolved"
+      ],
+      "risk-accepted": [
+        "in-remediation",
+        "resolved"
+      ],
+      "resolved": [
+        "closed",
+        "in-remediation"
+      ],
+      "closed": []
+    },
+    "risk_acceptance": {
+      "exception_binding": "history-event",
+      "requires_active_exception": true,
+      "allowed_exception_gates": [
+        "cloud-posture",
+        "terraform-drift"
+      ],
+      "exception_gate_by_source": {
+        "repository-posture": "cloud-posture",
+        "manual-review": "cloud-posture",
+        "security-command-center": "cloud-posture",
+        "terraform-drift": "terraform-drift"
+      }
+    },
+    "resolution": {
+      "require_attempt_per_resolved_transition": true,
+      "allowed_verification_statuses": [
+        "pending",
+        "failed",
+        "passed"
+      ],
+      "failed_verification_requires_evidence": true
+    },
+    "closure": {
+      "require_independent_verifier": true,
+      "minimum_evidence_items": 1
+    }
   },
   "live_cloud_sources": [
     {
