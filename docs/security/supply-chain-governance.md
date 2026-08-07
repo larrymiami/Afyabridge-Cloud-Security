@@ -31,9 +31,28 @@ Dependency updates still pass the existing pull-request security gates:
 - Trivy image scanning applies the same severity gate to the built container image.
 - External GitHub Actions remain full-commit-SHA pinned by the supply-chain workflow.
 - Docker base images remain digest pinned by the supply-chain identity/build validator.
-- Terraform provider selections remain constrained by committed lockfiles where the Terraform roots use them.
+- Every Terraform root validated by CI carries a committed provider lockfile with exact provider version and package integrity hashes.
+- Terraform CI and federation plan/apply initialization use `-lockfile=readonly`, so CI cannot silently rewrite provider selections.
 
 A dependency update is therefore not trusted merely because Dependabot proposed it. It must still satisfy repository tests, security gates, supply-chain invariants, and normal review.
+
+### Terraform provider integrity
+
+The reviewer pass for PR #15 found that the `observability` and `edge` Terraform roots were generating `.terraform.lock.hcl` files during CI rather than consuming reviewed lockfiles. A federation initialization also reported that provider dependency selections had changed during CI. That behavior was valid Terraform behavior but too permissive for the software-supply-chain milestone because the CI run could resolve or augment dependency selections after review.
+
+The repository now commits provider lockfiles for all Terraform roots exercised by the static validation workflow:
+
+- `infra/terraform/bootstrap`;
+- `infra/terraform/environments/foundation`;
+- `infra/terraform/environments/network`;
+- `infra/terraform/environments/workloads`;
+- `infra/terraform/environments/federation`;
+- `infra/terraform/environments/observability`; and
+- `infra/terraform/environments/edge`.
+
+Each lock records an exact Google provider version and Terraform package checksums. Static Terraform validation and the federation plan/apply workflows initialize with the lockfile in read-only mode. Provider changes therefore have to appear as reviewed repository changes rather than being selected implicitly by CI.
+
+`validate-supply-chain-governance.mjs` verifies that every reviewed Terraform root has a lockfile with an exact provider version and integrity hashes, and that all relevant initialization commands retain read-only lockfile behavior.
 
 ### Exceptions
 
@@ -80,7 +99,7 @@ AfyaBridge therefore maintains `security/supply-chain-revocations.json` as an ex
 - a full source commit SHA; or
 - an exact GitHub Actions workflow certificate identity.
 
-Every entry requires a unique `SC-REV-YYYY-NNN` identifier, substantive reason, revocation date, owner, and linked GitHub issue or pull request.
+Every entry requires a unique `SC-REV-YYYY-NNN` identifier, substantive reason, valid revocation date, owner, and linked GitHub issue or pull request.
 
 ### Enforcement
 
@@ -93,7 +112,7 @@ On a trusted-main signing run, the signing/provenance job then:
 3. performs Cosign and GitHub attestation verification, including source-ref and source-digest constraints; and
 4. checks the same trust subjects against the revocation registry again after cryptographic verification.
 
-The revocation checker records explicit `ALLOW <kind> <value>` evidence for each evaluated subject, making the trust decision reconstructable rather than recording only a count.
+The revocation checker records explicit `ALLOW <kind> <value>` evidence for each evaluated subject, making the trust decision reconstructable rather than recording only a count. Date validation rejects impossible calendar dates instead of allowing JavaScript date normalization to reinterpret them.
 
 This deliberately separates two questions:
 
@@ -132,9 +151,12 @@ The current negative scenarios include:
 - replacing the fixed `main` signer identity with a dynamic execution ref;
 - allowing empty Cosign verification evidence;
 - replacing the dedicated Cloud Run runtime service-account binding;
+- allowing Terraform CI to mutate provider lock selections;
+- replacing an exact Terraform locked provider version with a range;
 - shortening signed provenance evidence retention below the reviewed policy;
-- removing GitHub Actions from dependency monitoring; and
-- attempting to trust a synthetically revoked source commit.
+- removing GitHub Actions from dependency monitoring;
+- attempting to trust a synthetically revoked source commit; and
+- accepting an impossible revocation calendar date.
 
 A clean control fixture and a non-revoked synthetic source must continue to pass. The test suite therefore demonstrates both deny and allow behavior instead of only checking for expected failures.
 
@@ -143,7 +165,7 @@ A clean control fixture and a non-revoked synthetic source must continue to pass
 The unsigned build evidence package contains:
 
 - identity-boundary validation output;
-- dependency/retention governance validation output;
+- dependency/provider-lock/retention governance validation output;
 - revocation-registry validation output;
 - compromise-test output;
 - a snapshot of the revocation policy;
@@ -163,6 +185,6 @@ On trusted-main runs, the signed provenance package additionally contains:
 
 ## Current boundary
 
-v0.9D implements repository-level dependency monitoring policy, evidence-retention contracts, trusted-main signing policy, revocation decisions, and negative compromise tests. It does not yet provide a live Artifact Registry quarantine mechanism, Binary Authorization/deployment admission policy, live Cloud Run digest denial, organization-wide artifact inventory/revocation service, or independent verification of GitHub branch/ruleset settings.
+v0.9D implements repository-level dependency monitoring policy, immutable Terraform provider selections for the validated roots, evidence-retention contracts, trusted-main signing policy, revocation decisions, and negative compromise tests. It does not yet provide a live Artifact Registry quarantine mechanism, Binary Authorization/deployment admission policy, live Cloud Run digest denial, organization-wide artifact inventory/revocation service, or independent verification of GitHub branch/ruleset settings.
 
 Those controls depend on repository operations and the live Google Cloud deployment path and remain part of later deployment/runtime validation. The current revocation registry is therefore a repository trust-policy layer that complements — but does not replace — future registry and runtime enforcement.
