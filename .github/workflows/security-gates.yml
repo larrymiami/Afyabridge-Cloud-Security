@@ -35,7 +35,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   dependency-review:
-    name: Dependency review
+    name: Dependency and license review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -46,11 +46,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Block vulnerable dependency additions
+      - name: Block vulnerable or disallowed dependency additions
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
         with:
           fail-on-severity: high
           fail-on-scopes: runtime, development, unknown
+          deny-licenses: AGPL-3.0-only, AGPL-3.0-or-later, GPL-3.0-only, GPL-3.0-or-later
           warn-only: false
 
   codeql:
@@ -102,6 +103,53 @@ jobs:
         with:
           scan-type: config
           scan-ref: infra/terraform
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          hide-progress: true
+
+  packages:
+    name: Package vulnerability scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Scan repository dependencies
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+          hide-progress: true
+
+  container:
+    name: Container image scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Build web application image
+        run: docker build --file apps/web/Dockerfile --tag afyabridge-web:${{ github.sha }} .
+
+      - name: Scan built image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: afyabridge-web:${{ github.sha }}
+          scanners: vuln
           severity: HIGH,CRITICAL
           exit-code: '1'
           ignore-unfixed: true
