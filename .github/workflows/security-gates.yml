@@ -154,3 +154,69 @@ jobs:
           exit-code: '1'
           ignore-unfixed: true
           hide-progress: true
+
+  api-contract:
+    name: API contract validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Validate OpenAPI contract and route drift
+        run: node scripts/validate-api-contract.mjs
+
+  policy-as-code:
+    name: OPA policy as code
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OPA_VERSION: v1.17.0
+      OPA_LINUX_AMD64_STATIC_SHA256: e83da46804832578e9d9e1733dffbe4d3b5f8cc9c26eb124da9ceea4abfe189f
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install checksum-verified OPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          opa_bin="$RUNNER_TEMP/opa-bin"
+          mkdir -p "$opa_bin"
+          curl --fail --silent --show-error --location \
+            --output "$opa_bin/opa" \
+            "https://github.com/open-policy-agent/opa/releases/download/${OPA_VERSION}/opa_linux_amd64_static"
+          echo "${OPA_LINUX_AMD64_STATIC_SHA256}  $opa_bin/opa" | sha256sum --check --strict
+          chmod 0755 "$opa_bin/opa"
+          echo "$opa_bin" >> "$GITHUB_PATH"
+
+      - name: Validate Rego formatting
+        run: opa fmt --check security/policies/*.rego
+
+      - name: Run Rego unit tests
+        run: opa test security/policies --verbose
+
+      - name: Build repository policy input
+        run: node scripts/build-policy-input.mjs --output "$RUNNER_TEMP/afyabridge-policy-input.json"
+
+      - name: Evaluate repository policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          opa eval \
+            --format=pretty \
+            --data security/policies/repository.rego \
+            --input "$RUNNER_TEMP/afyabridge-policy-input.json" \
+            'data.afyabridge.ci.deny'
+          opa eval \
+            --fail-defined \
+            --format=pretty \
+            --data security/policies/repository.rego \
+            --input "$RUNNER_TEMP/afyabridge-policy-input.json" \
+            'data.afyabridge.ci.deny[_]'
