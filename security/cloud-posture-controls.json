@@ -1,0 +1,485 @@
+{
+  "schema_version": 1,
+  "profile_id": "AFYA-CSPM-BASELINE-1",
+  "source_control_matrix": "docs/security-control-matrix.md",
+  "controls": [
+    {
+      "id": "IAM-C01",
+      "title": "Require short-lived CI/CD federation and prohibit stored service-account keys",
+      "category": "identity",
+      "severity": "critical",
+      "owner": "cloud-security",
+      "requirement": "CI/CD cloud authentication must use short-lived federation and the governed Google Cloud hierarchy must prohibit user-managed service-account key creation and upload.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["development", "staging", "production", "shared"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/modules/github-actions-wif/main.tf", "kind": "terraform"},
+        {"path": "infra/terraform/modules/folder-policy/main.tf", "kind": "terraform"},
+        {"path": ".github/workflows/terraform-federation-plan.yml", "kind": "workflow"}
+      ],
+      "detection": [
+        {"method": "repository-validator", "status": "active"},
+        {"method": "cloud-asset-inventory", "status": "planned"},
+        {"method": "security-command-center", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "repository-static",
+        "live_validation_required": true,
+        "pending_reason": "Workload Identity Federation token exchange, effective organization policy, and live service-account-key inventory require the pending v0.7 Google Cloud bootstrap."
+      },
+      "exception": {"allowed": true, "maximum_days": 30}
+    },
+    {
+      "id": "IAM-C02",
+      "title": "Use dedicated least-privilege runtime identities",
+      "category": "identity",
+      "severity": "high",
+      "owner": "cloud-security",
+      "requirement": "Each deployed Cloud Run workload must execute as a dedicated runtime service account that is distinct from CI plan and apply identities.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production", "staging", "development"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/modules/cloud-run-service/main.tf", "kind": "terraform"},
+        {"path": "scripts/validate-supply-chain-identities.mjs", "kind": "validator"}
+      ],
+      "detection": [
+        {"method": "repository-validator", "status": "active"},
+        {"method": "cloud-asset-inventory", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "ci-enforced",
+        "live_validation_required": true,
+        "pending_reason": "The runtime service-account binding has not yet been inspected on a live Cloud Run revision."
+      },
+      "exception": {"allowed": false}
+    },
+    {
+      "id": "NET-C01",
+      "title": "Keep production databases off public endpoints",
+      "category": "network",
+      "severity": "critical",
+      "owner": "cloud-security",
+      "requirement": "Production Cloud SQL instances and restricted data services must not expose public network endpoints.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/modules/cloud-sql-postgres/main.tf", "kind": "terraform"},
+        {"path": "infra/terraform/modules/private-service-access/main.tf", "kind": "terraform"}
+      ],
+      "detection": [
+        {"method": "terraform-static", "status": "active"},
+        {"method": "trivy-config", "status": "active"},
+        {"method": "cloud-asset-inventory", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "ci-enforced",
+        "live_validation_required": true,
+        "pending_reason": "Public connectivity denial and live asset endpoint inventory require a deployed Cloud SQL instance."
+      },
+      "exception": {"allowed": false}
+    },
+    {
+      "id": "NET-C04",
+      "title": "Route public traffic through the approved HTTPS edge",
+      "category": "edge-dns",
+      "severity": "high",
+      "owner": "cloud-security",
+      "requirement": "Public application traffic must terminate through the approved regional HTTPS load-balancing, TLS, Cloud Armor, and managed DNS edge rather than directly at the workload origin.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/environments/edge/main.tf", "kind": "terraform"},
+        {"path": "docs/security/edge-negative-tests.md", "kind": "test-design"}
+      ],
+      "detection": [
+        {"method": "terraform-static", "status": "active"},
+        {"method": "cloud-asset-inventory", "status": "planned"},
+        {"method": "cloud-logging", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "repository-static",
+        "live_validation_required": true,
+        "pending_reason": "DNS delegation, certificate issuance, Cloud Armor behavior, origin-bypass denial, and HTTPS routing remain live v0.7 validation work."
+      },
+      "exception": {"allowed": true, "maximum_days": 30}
+    },
+    {
+      "id": "KMS-C01",
+      "title": "Keep cryptographic keys country and environment scoped",
+      "category": "kms-secrets",
+      "severity": "high",
+      "owner": "cloud-security",
+      "requirement": "Production cryptographic keys and their IAM scopes must remain country and environment specific rather than creating unrestricted cross-country key use.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production", "staging", "development"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/modules/cloud-kms/main.tf", "kind": "terraform"},
+        {"path": "docs/architecture/data-protection/key-management.md", "kind": "architecture"}
+      ],
+      "detection": [
+        {"method": "terraform-static", "status": "active"},
+        {"method": "cloud-asset-inventory", "status": "planned"},
+        {"method": "cloud-logging", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "repository-static",
+        "live_validation_required": true,
+        "pending_reason": "Cross-country encrypt/decrypt denial and effective KMS IAM require live keys and workload identities."
+      },
+      "exception": {"allowed": true, "maximum_days": 30}
+    },
+    {
+      "id": "KMS-C03",
+      "title": "Require reviewed cryptographic-key rotation",
+      "category": "kms-secrets",
+      "severity": "high",
+      "owner": "cloud-security",
+      "requirement": "Managed production cryptographic keys must carry an explicit rotation policy and destruction delay consistent with the reviewed data-protection design.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/modules/cloud-kms/main.tf", "kind": "terraform"},
+        {"path": "docs/architecture/data-protection/key-management.md", "kind": "architecture"}
+      ],
+      "detection": [
+        {"method": "terraform-static", "status": "active"},
+        {"method": "cloud-asset-inventory", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "repository-static",
+        "live_validation_required": true,
+        "pending_reason": "A real key rotation and dependent-service continuity test has not yet been executed."
+      },
+      "exception": {"allowed": true, "maximum_days": 30}
+    },
+    {
+      "id": "SEC-C02",
+      "title": "Keep runtime secrets out of images and Terraform state",
+      "category": "kms-secrets",
+      "severity": "critical",
+      "owner": "application-security",
+      "requirement": "Runtime secret payloads must remain in Secret Manager and must not be embedded in source, container images, Terraform configuration, or Terraform-managed secret versions.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production", "staging", "development"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/modules/secret-manager/main.tf", "kind": "terraform"},
+        {"path": "infra/terraform/modules/cloud-run-service/main.tf", "kind": "terraform"},
+        {"path": ".github/workflows/security-gates.yml", "kind": "workflow"}
+      ],
+      "detection": [
+        {"method": "repository-validator", "status": "active"},
+        {"method": "trivy-config", "status": "active"},
+        {"method": "cloud-asset-inventory", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "ci-enforced",
+        "live_validation_required": true,
+        "pending_reason": "Live Secret Manager access, runtime injection, and Terraform state inspection remain deployment-validation requirements."
+      },
+      "exception": {"allowed": false}
+    },
+    {
+      "id": "CICD-C01",
+      "title": "Require reviewed pull requests and a fail-closed security verdict",
+      "category": "supply-chain",
+      "severity": "critical",
+      "owner": "cloud-security",
+      "requirement": "Changes to the protected main branch must flow through pull requests and satisfy the fail-closed Security gate verdict before merge.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["development", "staging", "production", "shared"]
+      },
+      "implementation_refs": [
+        {"path": ".github/workflows/security-gates.yml", "kind": "workflow"},
+        {"path": "docs/security/supply-chain-governance.md", "kind": "governance"}
+      ],
+      "detection": [
+        {"method": "github-ruleset", "status": "active"},
+        {"method": "repository-validator", "status": "active"}
+      ],
+      "validation": {
+        "mode": "ci-enforced",
+        "live_validation_required": false
+      },
+      "exception": {"allowed": false}
+    },
+    {
+      "id": "DEP-C02",
+      "title": "Pin workflow and build dependencies to reviewed immutable versions",
+      "category": "supply-chain",
+      "severity": "high",
+      "owner": "cloud-security",
+      "requirement": "External GitHub Actions, container base images, and Terraform provider selections used by the reviewed build path must be bound to immutable reviewed versions or digests.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["development", "staging", "production", "shared"]
+      },
+      "implementation_refs": [
+        {"path": ".github/workflows/supply-chain.yml", "kind": "workflow"},
+        {"path": "scripts/validate-supply-chain-governance.mjs", "kind": "validator"}
+      ],
+      "detection": [
+        {"method": "repository-validator", "status": "active"}
+      ],
+      "validation": {
+        "mode": "ci-enforced",
+        "live_validation_required": false
+      },
+      "exception": {"allowed": true, "maximum_days": 30}
+    },
+    {
+      "id": "CSPM-C01",
+      "title": "Detect public exposure, excessive IAM, and service-account key risk",
+      "category": "cloud-posture",
+      "severity": "critical",
+      "owner": "cloud-security",
+      "requirement": "Posture evaluation must identify public data exposure, prohibited public IAM, primitive or excessive privileged access, and user-managed service-account key risk.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production", "staging", "development", "shared"]
+      },
+      "implementation_refs": [
+        {"path": ".github/workflows/security-gates.yml", "kind": "workflow"},
+        {"path": "infra/terraform/modules/project-factory/main.tf", "kind": "terraform"},
+        {"path": "infra/terraform/modules/cloud-storage/main.tf", "kind": "terraform"}
+      ],
+      "detection": [
+        {"method": "trivy-config", "status": "active"},
+        {"method": "opa-policy", "status": "active"},
+        {"method": "cloud-asset-inventory", "status": "planned"},
+        {"method": "security-command-center", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "ci-enforced",
+        "live_validation_required": true,
+        "pending_reason": "Current checks evaluate repository/IaC state; effective live IAM, public exposure, and service-account-key inventory require CAI/SCC after deployment."
+      },
+      "exception": {"allowed": true, "maximum_days": 30}
+    },
+    {
+      "id": "CSPM-C02",
+      "title": "Report and enforce approved deployment locations",
+      "category": "data-location",
+      "severity": "high",
+      "owner": "cloud-security",
+      "requirement": "Production resources that hold or process country-scoped data must remain within reviewed locations and must not silently create cross-border data movement.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production"]
+      },
+      "implementation_refs": [
+        {"path": "docs/adr/ADR-012-country-data-residency.md", "kind": "architecture"},
+        {"path": "docs/architecture/data-protection/data-residency.md", "kind": "architecture"},
+        {"path": "infra/terraform/environments/workload/main.tf", "kind": "terraform"}
+      ],
+      "detection": [
+        {"method": "terraform-static", "status": "active"},
+        {"method": "cloud-asset-inventory", "status": "planned"},
+        {"method": "security-command-center", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "live-pending",
+        "live_validation_required": true,
+        "pending_reason": "The repository defines country-aware regions, but effective location policy and live asset-location queries have not yet been exercised in Google Cloud."
+      },
+      "exception": {"allowed": true, "maximum_days": 30}
+    },
+    {
+      "id": "CSPM-C03",
+      "title": "Detect manual infrastructure drift and restore reviewed state",
+      "category": "cloud-posture",
+      "severity": "high",
+      "owner": "cloud-security",
+      "requirement": "Manual or out-of-band changes to governed infrastructure must be detected, attributed, and reconciled through reviewed Terraform rather than accepted silently.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production", "staging", "development", "shared"]
+      },
+      "implementation_refs": [
+        {"path": ".github/workflows/terraform-federation-plan.yml", "kind": "workflow"},
+        {"path": "docs/runbooks/federation-bootstrap.md", "kind": "runbook"}
+      ],
+      "detection": [
+        {"method": "terraform-plan-drift", "status": "planned"},
+        {"method": "cloud-asset-inventory", "status": "planned"},
+        {"method": "cloud-logging", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "live-pending",
+        "live_validation_required": true,
+        "pending_reason": "A real out-of-band Google Cloud change and subsequent Terraform reconciliation cannot be tested before v0.7 is deployed."
+      },
+      "exception": {"allowed": true, "maximum_days": 30}
+    },
+    {
+      "id": "CSPM-C04",
+      "title": "Maintain an owner- and country-aware cloud asset inventory",
+      "category": "cloud-posture",
+      "severity": "high",
+      "owner": "cloud-security",
+      "requirement": "Cloud assets must be queryable with ownership, country, environment, service, and data-classification context so ownerless, unlabelled, public, and cross-boundary resources can be identified.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production", "staging", "development", "shared"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/modules/project-factory/main.tf", "kind": "terraform"},
+        {"path": "docs/architecture/landing-zone/resource-hierarchy.md", "kind": "architecture"}
+      ],
+      "detection": [
+        {"method": "cloud-asset-inventory", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "live-pending",
+        "live_validation_required": true,
+        "pending_reason": "The metadata contract exists in Terraform, but a live Cloud Asset Inventory dataset does not yet exist."
+      },
+      "exception": {"allowed": true, "maximum_days": 30}
+    },
+    {
+      "id": "CSPM-C05",
+      "title": "Track posture findings through owned remediation or approved exception",
+      "category": "governance",
+      "severity": "high",
+      "owner": "cloud-security",
+      "requirement": "Every material posture finding must have severity, owner, due date, status, linked exception when applicable, and closure evidence rather than remaining an unowned scanner result.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production", "staging", "development", "shared"]
+      },
+      "implementation_refs": [
+        {"path": "security/exceptions.json", "kind": "registry"},
+        {"path": "scripts/validate-security-exceptions.mjs", "kind": "validator"}
+      ],
+      "detection": [
+        {"method": "repository-validator", "status": "active"},
+        {"method": "security-command-center", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "repository-static",
+        "live_validation_required": true,
+        "pending_reason": "A live cloud finding lifecycle from discovery through remediation and closure has not yet been exercised."
+      },
+      "exception": {"allowed": false}
+    },
+    {
+      "id": "GOV-C01",
+      "title": "Require resource ownership and classification metadata",
+      "category": "governance",
+      "severity": "medium",
+      "owner": "platform",
+      "requirement": "Governed projects and resources must carry reviewed naming and metadata that identifies ownership, environment, country, service, cost context, and data classification where applicable.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production", "staging", "development", "shared"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/modules/project-factory/main.tf", "kind": "terraform"},
+        {"path": "infra/terraform/modules/project-factory/variables.tf", "kind": "terraform"}
+      ],
+      "detection": [
+        {"method": "terraform-static", "status": "active"},
+        {"method": "cloud-asset-inventory", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "repository-static",
+        "live_validation_required": true,
+        "pending_reason": "The metadata input contract is statically validated; ownerless/unlabelled live assets require Cloud Asset Inventory."
+      },
+      "exception": {"allowed": true, "maximum_days": 90}
+    },
+    {
+      "id": "GOV-C02",
+      "title": "Restrict production deployment to approved identities and workflows",
+      "category": "governance",
+      "severity": "critical",
+      "owner": "cloud-security",
+      "requirement": "Production deployment must be restricted to the approved repository, reviewed workflow, protected main branch, protected production environment, and dedicated short-lived deployment identities.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/modules/github-actions-wif/main.tf", "kind": "terraform"},
+        {"path": ".github/workflows/terraform-federation-apply.yml", "kind": "workflow"},
+        {"path": "docs/security/supply-chain-identity-boundaries.md", "kind": "architecture"}
+      ],
+      "detection": [
+        {"method": "repository-validator", "status": "active"},
+        {"method": "cloud-logging", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "repository-static",
+        "live_validation_required": true,
+        "pending_reason": "The trust path is statically constrained, but WIF token exchange, environment approval, and exact Google Cloud IAM have not been live-validated."
+      },
+      "exception": {"allowed": false}
+    },
+    {
+      "id": "GOV-C03",
+      "title": "Govern security exceptions with ownership, approval, compensation, and expiry",
+      "category": "governance",
+      "severity": "high",
+      "owner": "cloud-security",
+      "requirement": "Security exceptions must be explicit, independently approved, time bounded, tracked, and supported by compensating controls; expired exceptions must fail validation.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production", "staging", "development", "shared"]
+      },
+      "implementation_refs": [
+        {"path": "security/exceptions.json", "kind": "registry"},
+        {"path": "scripts/validate-security-exceptions.mjs", "kind": "validator"},
+        {"path": "docs/security/ci-security-gates.md", "kind": "governance"}
+      ],
+      "detection": [
+        {"method": "repository-validator", "status": "active"}
+      ],
+      "validation": {
+        "mode": "ci-enforced",
+        "live_validation_required": false
+      },
+      "exception": {"allowed": false}
+    },
+    {
+      "id": "MON-C01",
+      "title": "Centralize security-relevant cloud telemetry",
+      "category": "logging-monitoring",
+      "severity": "high",
+      "owner": "security-operations",
+      "requirement": "Selected application, IAM, KMS, load-balancer, deployment, and audit telemetry must route to governed logging destinations with country-aware operational boundaries and security visibility.",
+      "applies_to": {
+        "countries": ["kenya", "ghana", "south-africa"],
+        "environments": ["production", "staging", "development", "shared"]
+      },
+      "implementation_refs": [
+        {"path": "infra/terraform/modules/centralized-logging/main.tf", "kind": "terraform"},
+        {"path": "docs/security/security-detection-catalogue.md", "kind": "detection-design"}
+      ],
+      "detection": [
+        {"method": "terraform-static", "status": "active"},
+        {"method": "cloud-logging", "status": "planned"},
+        {"method": "cloud-asset-inventory", "status": "planned"}
+      ],
+      "validation": {
+        "mode": "repository-static",
+        "live_validation_required": true,
+        "pending_reason": "Log delivery, retention, sink-writer IAM, country isolation, and queryability require live observability resources."
+      },
+      "exception": {"allowed": true, "maximum_days": 30}
+    }
+  ]
+}
