@@ -36,14 +36,20 @@ The repository collector is operational in v0.10B. A live Google Cloud collector
 - Cloud Storage public-access prevention and uniform bucket-level access;
 - KMS rotation/destruction fields, the reviewed 90-day rotation and 30-day scheduled-destruction defaults, workload-level override guardrails, and destroy protection;
 - Secret Manager use without Terraform-managed secret payload versions;
-- Cloud Armor, WAF, rate limiting, TLS, HTTPS redirect, DNS, and backend logging;
+- Cloud Armor policy attachment, configured WAF deny actions and throttling actions, TLS, HTTPS redirect, DNS, and backend logging;
 - project metadata, default-network prohibition, and production deletion protection;
 - centralized organization logging plumbing; and
 - country/environment input guardrails.
 
 Generated `.terraform` directories are excluded from source scanning so downloaded provider/module caches do not become repository posture evidence. Terraform comments are stripped before source matching while quoted strings and line positions are preserved, preventing a commented-out safe setting from satisfying an active posture fact.
 
-This is **desired-state evidence**. It is not Cloud Asset Inventory, effective IAM, or effective organization-policy evidence.
+This is **desired-state evidence**. It is not Cloud Asset Inventory, effective IAM, effective organization-policy, or Cloud Armor enforcement evidence.
+
+### Cloud Armor rollout boundary
+
+v0.7G intentionally uses a **preview-first** Cloud Armor rollout: the WAF and per-IP throttling rules have deny/throttle actions configured, but preview mode remains the default until representative traffic is reviewed for false positives and a country edge is deliberately promoted.
+
+v0.10B therefore proves that the Cloud Armor policy remains attached and that the reviewed WAF/throttle actions remain present in Terraform. It does **not** describe those preview-first actions as already enforcing traffic decisions. Live WAF/rate-limit enforcement remains a deployment-validation requirement after deliberate promotion.
 
 ### Collector boundary
 
@@ -61,9 +67,9 @@ Collector/source compromise tests mutate copied Terraform source and prove that 
 - allowed snapshot sources; and
 - allowed assertion operators.
 
-`scripts/validate-cloud-posture-rules.mjs` anchors the 11 reviewed required rule/control bindings and fails if a required rule is deleted, remapped to another control, given an unsupported source/scope, stripped of assertions, or changed to an unsupported assertion operator. This prevents an empty or reduced rule set from silently reporting a clean posture result.
+`scripts/validate-cloud-posture-rules.mjs` anchors the 11 reviewed required rule/control bindings, all 11 reviewed claim scopes, and all 42 reviewed assertion signatures. Required assertions are identified by fact path, operator, and expected value where applicable. Extra assertions may be added, but a required assertion cannot be removed, remapped, or weakened without failing validation.
 
-The rule-governance negative suite also tests deletion of a rule and its governance entry in the same mutation, plus remapping a required rule to a lower-severity control.
+The rule-governance negative suite also tests deletion of a rule and its governance entry in the same mutation, remapping a required rule to a lower-severity control, changing a required assertion fact or expected value, shrinking a required metadata set, and overstating the reviewed claim scope.
 
 ## Rule evaluation
 
@@ -98,9 +104,9 @@ The current evaluator decision suite covers **20 scenarios** including:
 - centralized logging removal; and
 - country-scope weakening.
 
-The independent collector/source suite covers **21 scenarios**. It includes mutated Terraform, explicit weakening of the reviewed KMS 90-day rotation default to 60 seconds and 30-day destruction delay to one day, workload KMS override-guard removal, service-account policy override weakening, comment-spoof resistance, generated `.terraform` exclusion, and protection against setting backend request-log sampling to zero. The executable rule-governance suite covers **10 scenarios** including rule deletion/remapping and governance+rule deletion together.
+The independent collector/source suite covers **21 scenarios**. It includes mutated Terraform, explicit weakening of the reviewed KMS 90-day rotation default to 60 seconds and 30-day destruction delay to one day, workload KMS override-guard removal, service-account policy override weakening, comment-spoof resistance, generated `.terraform` exclusion, and protection against setting backend request-log sampling to zero. The executable rule-governance suite covers **15 scenarios** including rule deletion/remapping, governance+rule deletion together, required-assertion deletion/remapping/expected-value weakening, required metadata-set shrinking, and claim-scope overstatement.
 
-Operational tunables are not frozen merely because they have defaults. For example, Cloud Armor rate-limit thresholds remain tunable because the current posture claim is that throttling exists; backend log sampling, by contrast, is constrained above zero because a zero value would directly contradict the claim that backend request logging is enabled.
+Operational tunables are not frozen merely because they have defaults. For example, Cloud Armor rate-limit thresholds remain tunable because the current posture claim is that the throttling action is configured; backend log sampling, by contrast, is constrained above zero because a zero value would directly contradict the claim that backend request logging is enabled. Cloud Armor preview-first rollout is also preserved as an explicit deployment boundary rather than being mislabeled as enforcement.
 
 ## Terraform drift adapter
 
@@ -134,6 +140,7 @@ It does **not** yet claim:
 - Security Command Center findings;
 - effective organization-policy or IAM measurement;
 - live resource-location inventory;
+- Cloud Armor WAF or rate-limit enforcement while the reviewed rollout remains preview-first;
 - a Terraform plan generated against deployed remote state for drift purposes;
 - a real console/manual change detected and reconciled; or
 - live finding remediation and closure.
