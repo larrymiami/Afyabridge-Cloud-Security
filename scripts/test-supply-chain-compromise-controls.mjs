@@ -178,6 +178,18 @@ const mutations = [
       ),
   },
   {
+    label: "security gate verdict no longer runs after upstream failure",
+    validator: validateGovernanceFixture,
+    path: ".github/workflows/security-gates.yml",
+    transform: (text) => {
+      const marker = "  verdict:\n";
+      const index = text.indexOf(marker);
+      if (index < 0) return text;
+      const tail = text.slice(index).replace("    if: always()", "    if: success()");
+      return `${text.slice(0, index)}${tail}`;
+    },
+  },
+  {
     label: "Terraform CI can mutate provider selections",
     validator: validateGovernanceFixture,
     path: ".github/workflows/terraform-foundation.yml",
