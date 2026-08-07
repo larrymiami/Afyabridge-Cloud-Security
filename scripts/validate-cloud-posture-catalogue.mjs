@@ -162,12 +162,27 @@ if (!Number.isInteger(exceptionPolicy.maximum_days) || exceptionPolicy.maximum_d
   fail("exception_policy.maximum_days must be between 1 and 90");
 }
 await requireRepositoryPath(exceptionPolicy.registry, "exception_policy.registry");
+const allowedExceptionStatuses = requireUniqueStrings(
+  exceptionPolicy.allowed_statuses,
+  "exception_policy.allowed_statuses",
+);
+if (
+  allowedExceptionStatuses.size !== 2 ||
+  !allowedExceptionStatuses.has("active") ||
+  !allowedExceptionStatuses.has("historical")
+) {
+  fail("exception_policy.allowed_statuses must remain active and historical");
+}
+if (exceptionPolicy.historical_status?.requires_retired_on !== true) {
+  fail("exception_policy.historical_status.requires_retired_on must remain true");
+}
 const requiredExceptionFields = requireUniqueStrings(
   exceptionPolicy.required_fields,
   "exception_policy.required_fields",
 );
 const expectedExceptionFields = new Set([
   "id",
+  "status",
   "scope",
   "rationale",
   "compensating_controls",
