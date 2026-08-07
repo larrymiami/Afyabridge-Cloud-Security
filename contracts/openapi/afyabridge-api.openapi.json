@@ -1,0 +1,495 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AfyaBridge application API",
+    "version": "0.8.0",
+    "description": "Contract for the minimal AfyaBridge community-health application. The x-afyabridge-actor header is a local integration seam only and is not a production identity mechanism."
+  },
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Return service health and deployment context",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/session": {
+      "get": {
+        "operationId": "getSession",
+        "summary": "Return the authenticated actor context",
+        "security": [
+          {
+            "ActorContext": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authenticated actor context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/households": {
+      "post": {
+        "operationId": "createHousehold",
+        "summary": "Authorize and validate a household creation request",
+        "security": [
+          {
+            "ActorContext": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHouseholdRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Household request accepted by the application baseline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateHouseholdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/InvalidRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDenied"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/households/{householdId}": {
+      "parameters": [
+        {
+          "name": "householdId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/CountryScopedId"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getHousehold",
+        "summary": "Return an authorized country-scoped household",
+        "security": [
+          {
+            "ActorContext": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized household",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ActorContext": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-afyabridge-actor",
+        "description": "Local application-security integration seam. Production must replace this with a trusted integrity-protected identity assertion."
+      }
+    },
+    "schemas": {
+      "CountryCode": {
+        "type": "string",
+        "enum": [
+          "KE",
+          "GH",
+          "ZA"
+        ]
+      },
+      "CountryScopedId": {
+        "type": "string",
+        "pattern": "^(KE|GH|ZA)_[A-Za-z0-9][A-Za-z0-9_-]*$"
+      },
+      "RequestScope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "country",
+          "programmeId",
+          "assignmentIds"
+        ],
+        "properties": {
+          "country": {
+            "$ref": "#/components/schemas/CountryCode"
+          },
+          "programmeId": {
+            "$ref": "#/components/schemas/CountryScopedId"
+          },
+          "facilityId": {
+            "$ref": "#/components/schemas/CountryScopedId"
+          },
+          "assignmentIds": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/CountryScopedId"
+            }
+          }
+        }
+      },
+      "Actor": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "actorId",
+          "actorType",
+          "roles",
+          "scope"
+        ],
+        "properties": {
+          "actorId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "actorType": {
+            "type": "string",
+            "enum": [
+              "workforce",
+              "workload"
+            ]
+          },
+          "roles": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          "scope": {
+            "$ref": "#/components/schemas/RequestScope"
+          }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "service",
+          "environment",
+          "country"
+        ],
+        "properties": {
+          "status": {
+            "const": "ok"
+          },
+          "service": {
+            "const": "afyabridge-web"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "development",
+              "staging",
+              "production"
+            ]
+          },
+          "country": {
+            "$ref": "#/components/schemas/CountryCode"
+          }
+        }
+      },
+      "SessionResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "actor"
+        ],
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/Actor"
+          }
+        }
+      },
+      "CreateHouseholdRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "country",
+          "programmeId",
+          "householdReference",
+          "village"
+        ],
+        "properties": {
+          "country": {
+            "$ref": "#/components/schemas/CountryCode"
+          },
+          "programmeId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "facilityId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "assignmentId": {
+            "type": "string",
+            "minLength": 4
+          },
+          "householdReference": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 64
+          },
+          "village": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          }
+        }
+      },
+      "CreatedHousehold": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "country",
+          "programmeId",
+          "householdReference",
+          "village",
+          "persistenceStatus"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CountryScopedId"
+          },
+          "country": {
+            "$ref": "#/components/schemas/CountryCode"
+          },
+          "programmeId": {
+            "type": "string"
+          },
+          "facilityId": {
+            "type": "string"
+          },
+          "assignmentId": {
+            "type": "string"
+          },
+          "householdReference": {
+            "type": "string"
+          },
+          "village": {
+            "type": "string"
+          },
+          "persistenceStatus": {
+            "const": "not_yet_persisted"
+          }
+        }
+      },
+      "CreateHouseholdResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "household"
+        ],
+        "properties": {
+          "household": {
+            "$ref": "#/components/schemas/CreatedHousehold"
+          }
+        }
+      },
+      "PersistedHousehold": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "country",
+          "programmeId"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/CountryScopedId"
+          },
+          "country": {
+            "$ref": "#/components/schemas/CountryCode"
+          },
+          "programmeId": {
+            "type": "string"
+          },
+          "facilityId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "assignmentId": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "HouseholdResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "household"
+        ],
+        "properties": {
+          "household": {
+            "$ref": "#/components/schemas/PersistedHousehold"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/Error"
+          }
+        }
+      }
+    },
+    "responses": {
+      "InvalidRequest": {
+        "description": "Request validation failed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "AuthenticationRequired": {
+        "description": "A valid authenticated actor context is required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "AccessDenied": {
+        "description": "The actor is authenticated but not authorized",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The requested country-scoped resource was not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "The request could not be completed",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            }
+          }
+        }
+      }
+    }
+  }
+}
