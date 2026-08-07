@@ -6,6 +6,24 @@ const root = resolve(process.env.POSTURE_REPO_ROOT ?? process.cwd());
 const rulesArg = process.argv[2] ?? "security/cloud-posture-rules.json";
 const catalogueArg = process.argv[3] ?? "security/cloud-posture-controls.json";
 const governanceArg = process.argv[4] ?? "security/cloud-posture-governance.json";
+
+function canonicalExpected(value) {
+  return Array.isArray(value) ? [...value].sort() : value;
+}
+
+function assertionSignature(assertion) {
+  const expected = Object.hasOwn(assertion, "expected")
+    ? JSON.stringify(canonicalExpected(assertion.expected))
+    : "";
+  return `${assertion.fact}|${assertion.operator}|${expected}`;
+}
+
+function reviewedAssertion(fact, operator, expected) {
+  const assertion = { fact, operator };
+  if (arguments.length === 3) assertion.expected = expected;
+  return assertionSignature(assertion);
+}
+
 const REVIEWED_REQUIRED_RULE_BINDINGS = new Map([
   ["POSTURE-IAM-001", "IAM-C01"],
   ["POSTURE-IAM-002", "IAM-C02"],
@@ -18,6 +36,77 @@ const REVIEWED_REQUIRED_RULE_BINDINGS = new Map([
   ["POSTURE-GOV-001", "GOV-C01"],
   ["POSTURE-LOG-001", "MON-C01"],
   ["POSTURE-LOC-001", "CSPM-C02"],
+]);
+
+const REVIEWED_REQUIRED_ASSERTIONS = new Map([
+  ["POSTURE-IAM-001", [
+    reviewedAssertion("identity.service_account_key_creation_policy_enforced", "equals", true),
+    reviewedAssertion("identity.service_account_key_upload_policy_enforced", "equals", true),
+    reviewedAssertion("identity.service_account_key_policy_override_guardrail", "equals", true),
+    reviewedAssertion("identity.service_account_key_resources", "empty"),
+  ]],
+  ["POSTURE-IAM-002", [
+    reviewedAssertion("identity.runtime_service_account_created", "equals", true),
+    reviewedAssertion("identity.runtime_service_account_assigned", "equals", true),
+  ]],
+  ["POSTURE-IAM-003", [
+    reviewedAssertion("identity.primitive_role_assignments", "empty"),
+    reviewedAssertion("identity.public_principal_assignments", "empty"),
+  ]],
+  ["POSTURE-NET-001", [
+    reviewedAssertion("network.cloud_sql_public_ipv4_disabled", "equals", true),
+    reviewedAssertion("network.cloud_sql_private_network_configured", "equals", true),
+  ]],
+  ["POSTURE-EDGE-001", [
+    reviewedAssertion("network.cloud_run_public_ingress_rejected", "equals", true),
+    reviewedAssertion("network.cloud_run_public_invokers_rejected", "equals", true),
+    reviewedAssertion("edge.cloud_armor_attached", "equals", true),
+    reviewedAssertion("edge.waf_deny_rules_configured", "equals", true),
+    reviewedAssertion("edge.rate_limit_configured", "equals", true),
+    reviewedAssertion("edge.tls_minimum_12", "equals", true),
+    reviewedAssertion("edge.https_forwarding_rule_443", "equals", true),
+    reviewedAssertion("edge.http_redirects_to_https", "equals", true),
+    reviewedAssertion("edge.frontend_dns_targets_managed_address", "equals", true),
+    reviewedAssertion("edge.backend_logging_enabled", "equals", true),
+  ]],
+  ["POSTURE-KMS-001", [
+    reviewedAssertion("kms.rotation_configured", "equals", true),
+    reviewedAssertion("kms.rotation_default_configured", "equals", true),
+    reviewedAssertion("kms.rotation_override_guardrail", "equals", true),
+    reviewedAssertion("kms.destroy_delay_configured", "equals", true),
+    reviewedAssertion("kms.destroy_delay_default_configured", "equals", true),
+    reviewedAssertion("kms.destroy_delay_override_guardrail", "equals", true),
+    reviewedAssertion("kms.prevent_destroy", "equals", true),
+  ]],
+  ["POSTURE-SEC-001", [
+    reviewedAssertion("secrets.secret_manager_resource_present", "equals", true),
+    reviewedAssertion("secrets.plaintext_secret_version_resources", "empty"),
+    reviewedAssertion("secrets.cloud_run_secret_reference_configured", "equals", true),
+  ]],
+  ["POSTURE-STORAGE-001", [
+    reviewedAssertion("storage.public_access_prevention_enforced", "equals", true),
+    reviewedAssertion("storage.uniform_bucket_level_access_enabled", "equals", true),
+  ]],
+  ["POSTURE-GOV-001", [
+    reviewedAssertion(
+      "governance.project_required_labels",
+      "contains_all",
+      ["managed_by", "application", "country", "environment", "service", "owner", "cost_center", "data_classification"],
+    ),
+    reviewedAssertion("governance.auto_create_network_disabled", "equals", true),
+    reviewedAssertion("governance.production_deletion_protection_required", "equals", true),
+  ]],
+  ["POSTURE-LOG-001", [
+    reviewedAssertion("logging.organization_sink_configured", "equals", true),
+    reviewedAssertion("logging.central_log_bucket_configured", "equals", true),
+    reviewedAssertion("logging.sink_writer_binding_configured", "equals", true),
+    reviewedAssertion("logging.log_bucket_prevent_destroy", "equals", true),
+  ]],
+  ["POSTURE-LOC-001", [
+    reviewedAssertion("location.foundation_country_scope_validation", "equals", true),
+    reviewedAssertion("location.foundation_environment_scope_validation", "equals", true),
+    reviewedAssertion("location.workload_country_scope_validation", "equals", true),
+  ]],
 ]);
 
 function fail(message) {
@@ -109,6 +198,7 @@ for (const [id, controlId] of REVIEWED_REQUIRED_RULE_BINDINGS) {
 
 const ruleList = array(rules.rules, "rules.rules");
 const ruleMap = new Map();
+const assertionSignaturesByRule = new Map();
 let assertionCount = 0;
 for (const [index, rule] of ruleList.entries()) {
   const label = `rules[${index}]`;
@@ -128,6 +218,8 @@ for (const [index, rule] of ruleList.entries()) {
   }
 
   const assertions = array(rule.assertions, `${id}.assertions`);
+  const assertionFacts = new Set();
+  const signatures = new Set();
   for (const [assertionIndex, assertion] of assertions.entries()) {
     const assertionLabel = `${id}.assertions[${assertionIndex}]`;
     if (!assertion || typeof assertion !== "object") fail(`${assertionLabel} must be an object`);
@@ -135,6 +227,8 @@ for (const [index, rule] of ruleList.entries()) {
     if (!/^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)+$/.test(fact)) {
       fail(`${assertionLabel}.fact must be a normalized dotted fact path`);
     }
+    if (assertionFacts.has(fact)) fail(`${id}: duplicate assertion fact ${fact}`);
+    assertionFacts.add(fact);
     if (!allowedOperators.has(assertion.operator)) {
       fail(`${assertionLabel}: unsupported operator ${assertion.operator ?? "missing"}`);
     }
@@ -145,10 +239,14 @@ for (const [index, rule] of ruleList.entries()) {
     if (assertion.operator === "contains_all") {
       uniqueStrings(assertion.expected, `${assertionLabel}.expected`);
     }
+    const signature = assertionSignature(assertion);
+    if (signatures.has(signature)) fail(`${id}: duplicate assertion signature ${signature}`);
+    signatures.add(signature);
     assertionCount += 1;
   }
 
   ruleMap.set(id, rule);
+  assertionSignaturesByRule.set(id, signatures);
 }
 
 for (const [requiredId, requiredControlId] of REVIEWED_REQUIRED_RULE_BINDINGS) {
@@ -157,8 +255,15 @@ for (const [requiredId, requiredControlId] of REVIEWED_REQUIRED_RULE_BINDINGS) {
   if (rule.control_id !== requiredControlId) {
     fail(`${requiredId}: control binding must remain ${requiredControlId}, got ${rule.control_id}`);
   }
+
+  const signatures = assertionSignaturesByRule.get(requiredId);
+  for (const requiredSignature of REVIEWED_REQUIRED_ASSERTIONS.get(requiredId) ?? []) {
+    if (!signatures.has(requiredSignature)) {
+      fail(`${requiredId}: required reviewed assertion is missing or changed: ${requiredSignature}`);
+    }
+  }
 }
 
 console.log(
-  `Cloud posture rules validated: ${ruleMap.size} rules, ${assertionCount} assertions, ${REVIEWED_REQUIRED_RULE_BINDINGS.size} anchored rule/control bindings.`,
+  `Cloud posture rules validated: ${ruleMap.size} rules, ${assertionCount} assertions, ${REVIEWED_REQUIRED_RULE_BINDINGS.size} anchored rule/control bindings, ${[...REVIEWED_REQUIRED_ASSERTIONS.values()].flat().length} anchored assertions.`,
 );
