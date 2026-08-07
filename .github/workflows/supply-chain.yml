@@ -1,0 +1,126 @@
+name: Supply chain
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/**"
+      - "packages/**"
+      - "scripts/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "apps/web/Dockerfile"
+      - ".dockerignore"
+      - ".github/workflows/supply-chain.yml"
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supply-chain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sbom:
+    name: Generate and validate SBOMs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+
+      - name: Prepare SBOM output directory
+        run: mkdir -p supply-chain-evidence
+
+      - name: Generate repository CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: cyclonedx
+          output: supply-chain-evidence/source.cdx.json
+          hide-progress: true
+
+      - name: Generate repository SPDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: spdx-json
+          output: supply-chain-evidence/source.spdx.json
+          hide-progress: true
+
+      - name: Build web application image
+        run: docker build --file apps/web/Dockerfile --tag afyabridge-web:${{ github.sha }} .
+
+      - name: Generate image CycloneDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: afyabridge-web:${{ github.sha }}
+          format: cyclonedx
+          output: supply-chain-evidence/image.cdx.json
+          hide-progress: true
+
+      - name: Generate image SPDX SBOM
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: afyabridge-web:${{ github.sha }}
+          format: spdx-json
+          output: supply-chain-evidence/image.spdx.json
+          hide-progress: true
+
+      - name: Validate SBOM structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '.bomFormat == "CycloneDX" and (.components | type == "array")' supply-chain-evidence/source.cdx.json >/dev/null
+          jq -e '.bomFormat == "CycloneDX" and (.components | type == "array")' supply-chain-evidence/image.cdx.json >/dev/null
+          jq -e '.spdxVersion | startswith("SPDX-")' supply-chain-evidence/source.spdx.json >/dev/null
+          jq -e '.spdxVersion | startswith("SPDX-")' supply-chain-evidence/image.spdx.json >/dev/null
+          test -s supply-chain-evidence/source.cdx.json
+          test -s supply-chain-evidence/source.spdx.json
+          test -s supply-chain-evidence/image.cdx.json
+          test -s supply-chain-evidence/image.spdx.json
+
+      - name: Record SBOM digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum \
+            supply-chain-evidence/source.cdx.json \
+            supply-chain-evidence/source.spdx.json \
+            supply-chain-evidence/image.cdx.json \
+            supply-chain-evidence/image.spdx.json \
+            | tee supply-chain-evidence/SHA256SUMS
+
+      - name: Publish SBOM summary
+        shell: bash
+        run: |
+          {
+            echo "## Supply-chain SBOM evidence"
+            echo
+            echo "Generated CycloneDX and SPDX JSON SBOMs for the repository dependency graph and built web image."
+            echo
+            echo '```text'
+            cat supply-chain-evidence/SHA256SUMS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload SBOM evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: supply-chain-sbom-${{ github.sha }}
+          path: supply-chain-evidence/
+          if-no-files-found: error
+          retention-days: 30
