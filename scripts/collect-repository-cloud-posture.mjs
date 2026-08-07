@@ -62,6 +62,7 @@ export async function collectRepositoryPosture(root = DEFAULT_ROOT) {
 
   const foundationVariables = await read(root, "infra/terraform/environments/foundation/variables.tf");
   const workloadVariables = await read(root, "infra/terraform/environments/workloads/variables.tf");
+  const workloadKmsVariables = await read(root, "infra/terraform/environments/workloads/kms-variables.tf");
   const cloudSql = await read(root, "infra/terraform/modules/cloud-sql-postgres/main.tf");
   const cloudRun = await read(root, "infra/terraform/modules/cloud-run-service/main.tf");
   const cloudRunVariables = await read(root, "infra/terraform/modules/cloud-run-service/variables.tf");
@@ -133,6 +134,15 @@ export async function collectRepositoryPosture(root = DEFAULT_ROOT) {
           foundationVariables,
           /"iam\.disableServiceAccountKeyUpload"\s*=\s*true/,
         ),
+        service_account_key_policy_override_guardrail:
+          has(
+            foundationVariables,
+            /try\(var\.baseline_boolean_policies\["iam\.disableServiceAccountKeyCreation"\],\s*false\)/,
+          ) &&
+          has(
+            foundationVariables,
+            /try\(var\.baseline_boolean_policies\["iam\.disableServiceAccountKeyUpload"\],\s*false\)/,
+          ),
         service_account_key_resources: serviceAccountKeyResources,
         primitive_role_assignments: primitiveRoleAssignments,
         public_principal_assignments: publicPrincipalAssignments,
@@ -172,17 +182,23 @@ export async function collectRepositoryPosture(root = DEFAULT_ROOT) {
       },
       kms: {
         rotation_configured: has(kms, /rotation_period\s*=\s*each\.value\.rotation_period/),
-        rotation_default_configured: has(
-          kmsVariables,
-          /rotation_period\s*=\s*optional\(string,\s*"7776000s"\)/,
+        rotation_default_configured:
+          has(kmsVariables, /rotation_period\s*=\s*optional\(string,\s*"7776000s"\)/) &&
+          has(workloadKmsVariables, /rotation_period\s*=\s*optional\(string,\s*"7776000s"\)/),
+        rotation_override_guardrail: has(
+          workloadKmsVariables,
+          /key\.rotation_period\s*==\s*"7776000s"/,
         ),
         destroy_delay_configured: has(
           kms,
           /destroy_scheduled_duration\s*=\s*each\.value\.destroy_scheduled_duration/,
         ),
-        destroy_delay_default_configured: has(
-          kmsVariables,
-          /destroy_scheduled_duration\s*=\s*optional\(string,\s*"2592000s"\)/,
+        destroy_delay_default_configured:
+          has(kmsVariables, /destroy_scheduled_duration\s*=\s*optional\(string,\s*"2592000s"\)/) &&
+          has(workloadKmsVariables, /destroy_scheduled_duration\s*=\s*optional\(string,\s*"2592000s"\)/),
+        destroy_delay_override_guardrail: has(
+          workloadKmsVariables,
+          /key\.destroy_scheduled_duration\s*==\s*"2592000s"/,
         ),
         prevent_destroy: has(kms, /lifecycle\s*\{[\s\S]*?prevent_destroy\s*=\s*true[\s\S]*?\}/),
       },
