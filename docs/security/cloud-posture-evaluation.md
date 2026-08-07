@@ -34,7 +34,7 @@ The repository collector is operational in v0.10B. A live Google Cloud collector
 - dedicated Cloud Run runtime identity, non-public ingress, and public-invoker rejection;
 - private Cloud SQL networking;
 - Cloud Storage public-access prevention and uniform bucket-level access;
-- KMS rotation/destruction fields, non-null reviewed defaults, and destroy protection;
+- KMS rotation/destruction fields, the reviewed 90-day rotation and 30-day scheduled-destruction defaults, and destroy protection;
 - Secret Manager use without Terraform-managed secret payload versions;
 - Cloud Armor, WAF, rate limiting, TLS, HTTPS redirect, DNS, and backend logging;
 - project metadata, default-network prohibition, and production deletion protection;
@@ -98,7 +98,7 @@ The current evaluator decision suite covers **17 scenarios** including:
 - centralized logging removal; and
 - country-scope weakening.
 
-The independent collector suite covers **13 scenarios**, including mutated Terraform and exclusion of generated `.terraform` cache content. The executable rule-governance suite covers **10 scenarios** including rule deletion/remapping and governance+rule deletion together.
+The independent collector suite covers **15 scenarios**, including mutated Terraform, explicit weakening of the reviewed KMS 90-day rotation default to 60 seconds and 30-day destruction delay to one day, and exclusion of generated `.terraform` cache content. The executable rule-governance suite covers **10 scenarios** including rule deletion/remapping and governance+rule deletion together.
 
 ## Terraform drift adapter
 
