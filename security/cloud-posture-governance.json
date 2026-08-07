@@ -144,6 +144,17 @@
       "security-command-center",
       "manual-review"
     ],
+    "active_sources": [
+      "repository-posture",
+      "manual-review"
+    ],
+    "allowed_actors": [
+      "security-automation",
+      "cloud-security",
+      "platform",
+      "application-security",
+      "security-operations"
+    ],
     "required_fields": [
       "id",
       "source",
@@ -182,7 +193,13 @@
       "allowed_exception_gates": [
         "cloud-posture",
         "terraform-drift"
-      ]
+      ],
+      "exception_gate_by_source": {
+        "repository-posture": "cloud-posture",
+        "manual-review": "cloud-posture",
+        "security-command-center": "cloud-posture",
+        "terraform-drift": "terraform-drift"
+      }
     },
     "closure": {
       "require_independent_verifier": true,
