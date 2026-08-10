@@ -18,4 +18,10 @@ override.tf.json
 .terraformrc
 terraform.rc
 
+# Terraform local plans and backend migration config
+*.tfplan
+*.tfplan.json
+*-plan.txt
+backend.hcl
+
 /engineering-notes/
