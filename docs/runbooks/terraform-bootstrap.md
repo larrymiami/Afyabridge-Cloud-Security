@@ -55,7 +55,7 @@ Review the plan for:
 - no destructive actions;
 - public access prevention on the state bucket;
 - uniform bucket-level access;
-- object versioning and retention;
+- object versioning, soft delete, and noncurrent-version lifecycle;
 - CMEK encryption using the intended Cloud KMS key;
 - deletion protection or `prevent_destroy` on state and key resources;
 - no primitive project roles;
@@ -86,7 +86,7 @@ Verify through Terraform outputs and Google Cloud inventory that:
 - public access prevention is enforced;
 - uniform bucket-level access is enabled;
 - versioning is enabled;
-- retention is configured as reviewed;
+- the noncurrent-version lifecycle and soft-delete window are configured as reviewed;
 - the default KMS key is the bootstrap state key;
 - the key and bucket are in the approved location;
 - the Terraform service account has no user-managed keys;

@@ -35,14 +35,14 @@ variable "terraform_service_account_id" {
   }
 }
 
-variable "state_retention_days" {
-  description = "Minimum retention period for Terraform state objects."
+variable "state_history_days" {
+  description = "Minimum age before lifecycle deletion of noncurrent Terraform state versions."
   type        = number
   default     = 30
 
   validation {
-    condition     = var.state_retention_days >= 7
-    error_message = "state_retention_days must be at least 7 days."
+    condition     = var.state_history_days >= 7
+    error_message = "state_history_days must be at least 7 days."
   }
 }
 

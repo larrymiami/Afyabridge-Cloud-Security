@@ -73,13 +73,20 @@ resource "google_storage_bucket" "terraform_state" {
     retention_duration_seconds = 604800
   }
 
-  encryption {
-    default_kms_key_name = google_kms_crypto_key.terraform_state.id
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+
+    condition {
+      days_since_noncurrent_time = var.state_history_days
+      with_state                 = "ARCHIVED"
+      send_age_if_zero           = false
+    }
   }
 
-  retention_policy {
-    retention_period = var.state_retention_days * 86400
-    is_locked        = false
+  encryption {
+    default_kms_key_name = google_kms_crypto_key.terraform_state.id
   }
 
   lifecycle {
