@@ -52,10 +52,7 @@ resource "google_service_account" "terraform" {
   display_name = "AfyaBridge Terraform deployer"
   description  = "Non-human execution identity for reviewed AfyaBridge Terraform deployments."
 
-  depends_on = [
-    google_project_service.required,
-    google_kms_crypto_key_iam_member.terraform_state_storage_service_agent,
-  ]
+  depends_on = [google_project_service.required]
 }
 
 resource "google_storage_bucket" "terraform_state" {
