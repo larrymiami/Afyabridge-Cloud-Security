@@ -104,10 +104,19 @@ resource "google_storage_bucket" "terraform_state" {
   ]
 }
 
-resource "google_storage_bucket_iam_member" "terraform_state_object_admin" {
-  bucket = google_storage_bucket.terraform_state.name
-  role   = "roles/storage.objectAdmin"
-  member = "serviceAccount:${google_service_account.terraform.email}"
+data "google_iam_policy" "terraform_state_bucket" {
+  binding {
+    role = "roles/storage.objectAdmin"
+
+    members = [
+      "serviceAccount:${google_service_account.terraform.email}",
+    ]
+  }
+}
+
+resource "google_storage_bucket_iam_policy" "terraform_state" {
+  bucket      = google_storage_bucket.terraform_state.name
+  policy_data = data.google_iam_policy.terraform_state_bucket.policy_data
 }
 
 resource "google_kms_crypto_key_iam_member" "terraform_state_storage_service_agent" {
