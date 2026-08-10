@@ -14,6 +14,7 @@ resource "google_project_service" "required" {
   for_each = toset([
     "cloudkms.googleapis.com",
     "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
     "storage.googleapis.com",
   ])
 
@@ -25,7 +26,9 @@ resource "google_project_service" "required" {
 data "google_storage_project_service_account" "gcs" {
   project = var.bootstrap_project_id
 
-  depends_on = [google_project_service.required]
+  depends_on = [
+    google_project_service.required["storage.googleapis.com"],
+  ]
 }
 
 resource "google_kms_key_ring" "terraform_state" {
@@ -37,7 +40,9 @@ resource "google_kms_key_ring" "terraform_state" {
     prevent_destroy = true
   }
 
-  depends_on = [google_project_service.required]
+  depends_on = [
+    google_project_service.required["cloudkms.googleapis.com"],
+  ]
 }
 
 resource "google_kms_crypto_key" "terraform_state" {
@@ -57,7 +62,9 @@ resource "google_service_account" "terraform" {
   display_name = "AfyaBridge Terraform deployer"
   description  = "Non-human execution identity for reviewed AfyaBridge Terraform deployments."
 
-  depends_on = [google_project_service.required]
+  depends_on = [
+    google_project_service.required["iam.googleapis.com"],
+  ]
 }
 
 resource "google_storage_bucket" "terraform_state" {
@@ -99,7 +106,7 @@ resource "google_storage_bucket" "terraform_state" {
   }
 
   depends_on = [
-    google_project_service.required,
+    google_project_service.required["storage.googleapis.com"],
     google_kms_crypto_key_iam_member.terraform_state_storage_service_agent,
   ]
 }
