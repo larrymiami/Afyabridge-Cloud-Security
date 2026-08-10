@@ -25,10 +25,7 @@ resource "google_project_service" "required" {
 data "google_storage_project_service_account" "gcs" {
   project = var.bootstrap_project_id
 
-  depends_on = [
-    google_project_service.required,
-    google_kms_crypto_key_iam_member.terraform_state_storage_service_agent,
-  ]
+  depends_on = [google_project_service.required]
 }
 
 resource "google_kms_key_ring" "terraform_state" {
@@ -36,10 +33,7 @@ resource "google_kms_key_ring" "terraform_state" {
   location = var.region
   project  = var.bootstrap_project_id
 
-  depends_on = [
-    google_project_service.required,
-    google_kms_crypto_key_iam_member.terraform_state_storage_service_agent,
-  ]
+  depends_on = [google_project_service.required]
 }
 
 resource "google_kms_crypto_key" "terraform_state" {

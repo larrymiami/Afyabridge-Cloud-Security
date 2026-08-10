@@ -98,9 +98,9 @@ Verify through Terraform outputs and Google Cloud inventory that:
 Create a temporary backend configuration file outside source control:
 
 ```hcl
-bucket      = "REPLACE_WITH_STATE_BUCKET"
-prefix      = "bootstrap/core"
-encryption_key = "REPLACE_WITH_KMS_KEY_RESOURCE_NAME"
+bucket             = "REPLACE_WITH_STATE_BUCKET"
+prefix             = "bootstrap/core"
+kms_encryption_key = "REPLACE_WITH_KMS_KEY_RESOURCE_NAME"
 ```
 
 Add the reviewed `backend "gcs" {}` block to the bootstrap root, then migrate:
