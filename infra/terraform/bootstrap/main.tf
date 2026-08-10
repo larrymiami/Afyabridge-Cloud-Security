@@ -33,6 +33,10 @@ resource "google_kms_key_ring" "terraform_state" {
   location = var.region
   project  = var.bootstrap_project_id
 
+  lifecycle {
+    prevent_destroy = true
+  }
+
   depends_on = [google_project_service.required]
 }
 
@@ -40,6 +44,7 @@ resource "google_kms_crypto_key" "terraform_state" {
   name            = "terraform-state"
   key_ring        = google_kms_key_ring.terraform_state.id
   rotation_period = "7776000s"
+  deletion_policy = "PREVENT"
 
   lifecycle {
     prevent_destroy = true
