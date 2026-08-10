@@ -22,12 +22,24 @@ resource "google_project_service" "required" {
   disable_on_destroy = false
 }
 
+data "google_storage_project_service_account" "gcs" {
+  project = var.bootstrap_project_id
+
+  depends_on = [
+    google_project_service.required,
+    google_kms_crypto_key_iam_member.terraform_state_storage_service_agent,
+  ]
+}
+
 resource "google_kms_key_ring" "terraform_state" {
   name     = "afyabridge-terraform-state"
   location = var.region
   project  = var.bootstrap_project_id
 
-  depends_on = [google_project_service.required]
+  depends_on = [
+    google_project_service.required,
+    google_kms_crypto_key_iam_member.terraform_state_storage_service_agent,
+  ]
 }
 
 resource "google_kms_crypto_key" "terraform_state" {
@@ -46,7 +58,10 @@ resource "google_service_account" "terraform" {
   display_name = "AfyaBridge Terraform deployer"
   description  = "Non-human execution identity for reviewed AfyaBridge Terraform deployments."
 
-  depends_on = [google_project_service.required]
+  depends_on = [
+    google_project_service.required,
+    google_kms_crypto_key_iam_member.terraform_state_storage_service_agent,
+  ]
 }
 
 resource "google_storage_bucket" "terraform_state" {
@@ -63,6 +78,10 @@ resource "google_storage_bucket" "terraform_state" {
     enabled = true
   }
 
+  soft_delete_policy {
+    retention_duration_seconds = 604800
+  }
+
   encryption {
     default_kms_key_name = google_kms_crypto_key.terraform_state.id
   }
@@ -76,7 +95,10 @@ resource "google_storage_bucket" "terraform_state" {
     prevent_destroy = true
   }
 
-  depends_on = [google_project_service.required]
+  depends_on = [
+    google_project_service.required,
+    google_kms_crypto_key_iam_member.terraform_state_storage_service_agent,
+  ]
 }
 
 resource "google_storage_bucket_iam_member" "terraform_state_object_admin" {
@@ -85,8 +107,8 @@ resource "google_storage_bucket_iam_member" "terraform_state_object_admin" {
   member = "serviceAccount:${google_service_account.terraform.email}"
 }
 
-resource "google_kms_crypto_key_iam_member" "terraform_state_encrypter" {
+resource "google_kms_crypto_key_iam_member" "terraform_state_storage_service_agent" {
   crypto_key_id = google_kms_crypto_key.terraform_state.id
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = "serviceAccount:${google_service_account.terraform.email}"
+  member        = data.google_storage_project_service_account.gcs.member
 }

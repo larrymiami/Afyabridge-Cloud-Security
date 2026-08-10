@@ -99,7 +99,7 @@ Create a temporary backend configuration file outside source control:
 
 ```hcl
 bucket      = "REPLACE_WITH_STATE_BUCKET"
-prefix      = "bootstrap"
+prefix      = "bootstrap/core"
 encryption_key = "REPLACE_WITH_KMS_KEY_RESOURCE_NAME"
 ```
 
