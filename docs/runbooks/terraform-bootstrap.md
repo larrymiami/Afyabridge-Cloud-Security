@@ -215,14 +215,17 @@ Until a separately reviewed administrative Terraform root or equivalent control 
 
 ### State-bucket IAM ownership boundary
 
-The current bootstrap resource `google_storage_bucket_iam_policy.terraform_state` is authoritative for the bucket-level IAM policy and currently grants backend object administration only to `terraform-deployer`.
+Repository policy prohibits authoritative bucket IAM resources because they can remove unrelated principals. The bootstrap root therefore manages its backend grant with the additive resource:
 
-That is acceptable for the present bootstrap-only validation boundary, but it creates an explicit future integration requirement: before separate federated plan/apply identities or later Terraform roots use this bucket, either:
+```text
+google_storage_bucket_iam_member.terraform_state_object_admin
+```
 
-1. manage every required state principal centrally in the authoritative bootstrap policy; or
-2. migrate the bucket policy to reviewed non-authoritative IAM member resources.
+The reviewer migration from the earlier authoritative `google_storage_bucket_iam_policy.terraform_state` uses a Terraform `removed` block with `destroy = false` so the old state object can be handed off without clearing the live bucket policy. The additive member is then established and tracked separately.
 
-Do not add later bucket principals out of band and assume they will survive a bootstrap apply. The selected ownership model must be reviewed before the shared state bucket is used by additional deployment identities.
+This migration requires one reviewed live apply with the exact bucket IAM write permission required by the provider. After the handoff, remove that temporary IAM administration permission and run a final zero-change plan.
+
+Additional state principals must also be managed additively and reviewed against the intended backend/state boundary. Do not reintroduce an authoritative whole-policy resource for convenience.
 
 ## Validate least privilege
 
@@ -315,6 +318,7 @@ Manual state modification requires an incident or approved change record.
 - denied and allowed permission tests used for least-privilege discovery;
 - final custom-role permission definitions and scopes;
 - proof that temporary discovery/administrative bindings were removed;
+- reviewer-driven IAM ownership migration result;
 - final zero-change plan;
 - reviewer and exception records.
 
