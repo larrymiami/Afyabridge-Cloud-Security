@@ -33,7 +33,7 @@ AfyaBridge Cloud Security will use a dedicated bootstrap project and a two-stage
 
 ### Bootstrap project
 
-The project `afyabridge-bootstrap-core` will contain:
+The target bootstrap project `afyabridge-bootstrap-core` will contain:
 
 - the remote Terraform state bucket;
 - state-encryption configuration;
@@ -43,11 +43,15 @@ The project `afyabridge-bootstrap-core` will contain:
 
 It will not host application workloads or business data.
 
+The first live bootstrap validation uses the dedicated lab project `afyabridge-bootstrap-260808-lm` to exercise the control design without claiming that the later production-style organization hierarchy has been deployed.
+
 ### Stage 0
 
 A privileged administrator may run a small, reviewed Terraform configuration locally to create the bootstrap prerequisites.
 
 This is the only normal case where infrastructure may be applied locally with elevated privileges.
+
+The live bootstrap exercise used short-lived service-account impersonation and temporary, time-bounded administrative grants rather than a downloaded service-account key. Temporary grants were removed after validation.
 
 ### Stage 1 and later
 
@@ -86,6 +90,8 @@ Each deployment identity will have access only to its assigned state and target 
 Application workload identities will have no access to Terraform state.
 
 Human access will be limited to temporary investigation, recovery, and break-glass operations.
+
+For the live bootstrap identity, steady-state provider refresh permissions were reduced to a custom nine-permission reader. Bucket metadata mutation is separated into a second custom role containing only `storage.buckets.update` and conditionally scoped to the protected state bucket. Backend object access is governed separately at the bucket level.
 
 ### Concurrency
 
@@ -168,7 +174,19 @@ Deferred because the initial landing zone does not require that level of duplica
 
 ## Validation
 
-The decision will be validated by demonstrating that:
+The decision is validated incrementally.
+
+The v0.7H live bootstrap exercise has demonstrated that:
+
+- the bootstrap control plane can be provisioned and refreshed in live Google Cloud;
+- Terraform can authenticate through short-lived service-account impersonation without a downloaded service-account key;
+- remote bootstrap state is protected by a dedicated Cloud Storage bucket and Cloud KMS key;
+- steady-state provider read requirements can be reduced to a measured custom role;
+- a reversible bucket mutation is denied without `storage.buckets.update` and succeeds after that exact permission is granted;
+- the mutation can be reverted cleanly; and
+- temporary bootstrap and discovery grants can be removed while a final Terraform plan remains drift-free.
+
+The following remain pending validation:
 
 - GitHub Actions successfully authenticates through workload identity federation;
 - no service-account key is stored in GitHub;
@@ -177,13 +195,14 @@ The decision will be validated by demonstrating that:
 - one country identity cannot modify another country’s state;
 - application identities cannot access the state bucket;
 - a deleted test state can be recovered from an earlier version;
-- concurrent applies against the same state are prevented;
-- all apply operations are traceable to approved commits.
+- concurrent applies against the same state are prevented; and
+- later CI/CD apply operations are traceable end-to-end to approved commits.
 
 ## Related documents
 
 - [`../architecture/landing-zone/bootstrap-and-state.md`](../architecture/landing-zone/bootstrap-and-state.md)
 - [`../architecture/landing-zone/project-factory.md`](../architecture/landing-zone/project-factory.md)
+- [`../evidence/v0.7h-bootstrap-live-validation.md`](../evidence/v0.7h-bootstrap-live-validation.md)
 - [`ADR-001-google-cloud-resource-hierarchy.md`](ADR-001-google-cloud-resource-hierarchy.md)
 - [`ADR-002-country-isolation-model.md`](ADR-002-country-isolation-model.md)
 - [`../security-objectives.md`](../security-objectives.md)
@@ -191,4 +210,6 @@ The decision will be validated by demonstrating that:
 
 ## Implementation status
 
-**Designed** — the decision is accepted, but the bootstrap project, state backend, and federation configuration have not yet been provisioned or tested.
+**Partially live-validated** — the protected Terraform bootstrap control plane, remote state, CMEK protection, scoped service-account impersonation, measured steady-state IAM, controlled mutation behavior, and privilege cleanup have been exercised in a dedicated Google Cloud lab project.
+
+GitHub Workload Identity Federation and the later foundation, network, workload, observability, and edge deployment paths remain pending live validation.
