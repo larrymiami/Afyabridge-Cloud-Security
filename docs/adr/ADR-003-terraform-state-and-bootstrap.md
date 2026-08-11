@@ -29,11 +29,11 @@ The bootstrap process presents a dependency problem: the remote backend and CI/C
 
 ## Decision
 
-AfyaBridge Cloud Security will use a dedicated bootstrap project and a two-stage bootstrap process.
+AfyaBridge Cloud Security will use a dedicated bootstrap project and a staged bootstrap process.
 
 ### Bootstrap project
 
-The target bootstrap project `afyabridge-bootstrap-core` will contain:
+The target bootstrap project naming pattern is represented by `afyabridge-bootstrap-core`. It will contain:
 
 - the remote Terraform state bucket;
 - state-encryption configuration;
@@ -45,17 +45,33 @@ It will not host application workloads or business data.
 
 The first live bootstrap validation uses the dedicated lab project `afyabridge-bootstrap-260808-lm` to exercise the control design without claiming that the later production-style organization hierarchy has been deployed.
 
-### Stage 0
+The current `infra/terraform/bootstrap` root consumes an **existing** approved bootstrap project. Project creation and billing association are prerequisites handled outside that root.
 
-A privileged administrator may run a small, reviewed Terraform configuration locally to create the bootstrap prerequisites.
+### Stage 0A — project prerequisite
+
+An approved, billing-enabled bootstrap project is established through the project-governance process.
+
+The Terraform bootstrap root does not create its own parent project.
+
+### Stage 0B — local Terraform bootstrap
+
+A privileged administrator may run the small, reviewed bootstrap Terraform configuration locally to create the management-plane resources inside the approved project.
 
 This is the only normal case where infrastructure may be applied locally with elevated privileges.
 
-The live bootstrap exercise used short-lived service-account impersonation and temporary, time-bounded administrative grants rather than a downloaded service-account key. Temporary grants were removed after validation.
+The live bootstrap exercise used short-lived service-account impersonation and temporary, time-bounded administrative grants rather than a downloaded service-account key. Temporary project-level grants were removed after validation.
+
+The committed root represents its post-migration state and contains the GCS backend declaration. A first-ever bootstrap therefore uses a temporary local working copy without that backend block, followed by reviewed state migration into the protected bucket.
+
+### Stage 0C — federation handoff
+
+The separate federation configuration establishes GitHub Workload Identity Federation, plan/apply service accounts, and the reviewed repository/ref/environment trust conditions.
+
+This stage is implemented in code but remains pending live validation.
 
 ### Stage 1 and later
 
-After bootstrap, landing-zone changes will run through reviewed CI/CD workflows using workload identity federation.
+After federation is validated, landing-zone changes will run through reviewed CI/CD workflows using workload identity federation.
 
 No routine deployment will use a downloadable Google Cloud service-account key.
 
@@ -89,9 +105,15 @@ Each deployment identity will have access only to its assigned state and target 
 
 Application workload identities will have no access to Terraform state.
 
-Human access will be limited to temporary investigation, recovery, and break-glass operations.
+Human access should be limited to temporary investigation, recovery, and break-glass operations once the federated path is live.
 
 For the live bootstrap identity, steady-state provider refresh permissions were reduced to a custom nine-permission reader. Bucket metadata mutation is separated into a second custom role containing only `storage.buckets.update` and conditionally scoped to the protected state bucket. Backend object access is governed separately at the bucket level.
+
+The `storage.buckets.update` permission is resource-scoped by the condition but not field-scoped; it remains an apply capability and should be made JIT/time-bounded where standing bucket mutation is unnecessary.
+
+The human Token Creator binding used during v0.7H is scoped to the single Terraform service account and retained only as a transitional lab bridge before federation is live. It is not the final production-style operator access model.
+
+The current state-bucket IAM resource is authoritative for bucket-level IAM. Before later plan/apply identities share the bucket, the project must either manage all required state principals centrally in that policy or migrate to non-authoritative IAM member resources.
 
 ### Concurrency
 
@@ -101,12 +123,14 @@ CI/CD workflows will enforce one apply at a time per state boundary and will rej
 
 ### Local Terraform state
 
-Rejected because it would:
+Rejected as a steady-state design because it would:
 
 - make collaboration and recovery unreliable;
 - increase the risk of state loss;
 - encourage production applies from developer workstations;
 - weaken auditability.
+
+A temporary local state is accepted only for the one-time Stage-0 bootstrap before the remote backend exists.
 
 ### Single monolithic remote state
 
@@ -126,6 +150,8 @@ Rejected because long-lived credentials can be leaked, copied, or used outside t
 
 Rejected because it would create configuration drift and weaken review, traceability, and repeatability.
 
+Temporary administrative handoff operations remain acceptable only where the Terraform execution identity cannot safely own or broaden its own IAM.
+
 ### Separate bootstrap project per country
 
 Deferred because the initial landing zone does not require that level of duplication. Country-specific deployment identities and state boundaries provide sufficient isolation for the current design.
@@ -134,20 +160,24 @@ Deferred because the initial landing zone does not require that level of duplica
 
 ### Positive
 
-- CI/CD can authenticate without long-lived credentials.
+- CI/CD can authenticate without long-lived credentials once federation is enabled.
 - Terraform state is centrally protected and recoverable.
 - Country and environment state boundaries reduce blast radius.
-- Infrastructure changes remain traceable to reviewed commits.
+- Infrastructure changes can remain traceable to reviewed commits.
 - Application identities cannot access management-plane state.
 - Bootstrap responsibilities remain isolated from workloads.
+- Live provider permissions can be measured rather than approximated with broad administrative roles.
 
 ### Negative
 
 - Stage 0 still requires careful privileged human execution.
+- The committed post-migration root needs a documented local-backend exception for first-ever creation.
 - Multiple state boundaries add backend and workflow complexity.
 - Recovery depends on preserving access to both the state bucket and its encryption key.
 - Workload identity federation conditions require careful testing.
 - The bootstrap project becomes a critical management-plane dependency.
+- `storage.buckets.update` cannot be restricted to labels or one metadata field through the custom role alone.
+- An authoritative bucket IAM policy requires explicit ownership coordination before later state identities are added.
 
 ### Risks
 
@@ -156,11 +186,13 @@ Deferred because the initial landing zone does not require that level of duplica
 - State may contain sensitive infrastructure metadata.
 - A disabled or destroyed encryption key could prevent state recovery.
 - Concurrency failures could corrupt or desynchronize state.
+- A compromised apply-capable bootstrap identity could alter protected bucket metadata within the scope of its bucket updater permission.
+- A later out-of-band bucket IAM grant could be removed by the authoritative bootstrap policy if ownership is not coordinated.
 
 ## Required controls
 
 - multi-factor authentication for privileged bootstrap administrators;
-- reviewed Stage 0 Terraform plan;
+- reviewed Stage-0 Terraform plan;
 - no committed credentials;
 - public-access prevention on state storage;
 - state versioning and recovery testing;
@@ -170,7 +202,9 @@ Deferred because the initial landing zone does not require that level of duplica
 - audit logging for state, IAM, and KMS access;
 - pipeline concurrency controls;
 - break-glass recovery procedure;
-- periodic verification that no user-managed CI/CD keys exist.
+- periodic verification that no user-managed CI/CD keys exist;
+- explicit review of the state-bucket IAM ownership model before additional backend principals are added; and
+- removal or JIT conversion of standing human bootstrap impersonation after federation handoff.
 
 ## Validation
 
@@ -184,16 +218,17 @@ The v0.7H live bootstrap exercise has demonstrated that:
 - steady-state provider read requirements can be reduced to a measured custom role;
 - a reversible bucket mutation is denied without `storage.buckets.update` and succeeds after that exact permission is granted;
 - the mutation can be reverted cleanly; and
-- temporary bootstrap and discovery grants can be removed while a final Terraform plan remains drift-free.
+- temporary project-level bootstrap and discovery grants can be removed while a final Terraform plan remains drift-free.
 
 The following remain pending validation:
 
 - GitHub Actions successfully authenticates through workload identity federation;
-- no service-account key is stored in GitHub;
 - unapproved branches or repositories cannot federate;
+- the standing human lab impersonation path is removed or converted to JIT after federation handoff;
 - non-production identities cannot read or write production state;
 - one country identity cannot modify another country’s state;
 - application identities cannot access the state bucket;
+- the final multi-principal state-bucket IAM ownership model works without clobbering later identities;
 - a deleted test state can be recovered from an earlier version;
 - concurrent applies against the same state are prevented; and
 - later CI/CD apply operations are traceable end-to-end to approved commits.
@@ -212,4 +247,4 @@ The following remain pending validation:
 
 **Partially live-validated** — the protected Terraform bootstrap control plane, remote state, CMEK protection, scoped service-account impersonation, measured steady-state IAM, controlled mutation behavior, and privilege cleanup have been exercised in a dedicated Google Cloud lab project.
 
-GitHub Workload Identity Federation and the later foundation, network, workload, observability, and edge deployment paths remain pending live validation.
+The current human impersonation path and bucket updater remain transitional bootstrap-lab capabilities. GitHub Workload Identity Federation, final plan/apply separation, later state-bucket principal ownership, and the foundation, network, workload, observability, and edge deployment paths remain pending live validation.
