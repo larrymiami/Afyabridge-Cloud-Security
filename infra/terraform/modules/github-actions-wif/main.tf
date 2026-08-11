@@ -29,7 +29,7 @@ resource "google_iam_workload_identity_pool_provider" "plan" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.plan.workload_identity_pool_id
   workload_identity_pool_provider_id = var.plan_provider_id
   display_name                       = "GitHub Terraform plan"
-  description                        = "Accepts pull-request plans and trusted manual main-branch plans from the immutable AfyaBridge repository identity."
+  description                        = "Accepts pull-request plans and trusted manual main-branch plans from the immutable AfyaBridge repository identity and exact plan workflow."
   disabled                           = var.disabled
 
   attribute_mapping = {
@@ -38,17 +38,18 @@ resource "google_iam_workload_identity_pool_provider" "plan" {
     "attribute.base_ref"            = "assertion.base_ref"
     "attribute.deployment_role"     = "\"plan\""
     "attribute.event_name"          = "assertion.event_name"
-    "attribute.job_workflow_ref"    = "assertion.job_workflow_ref"
     "attribute.ref"                 = "assertion.ref"
     "attribute.repository"          = "assertion.repository"
     "attribute.repository_id"       = "assertion.repository_id"
     "attribute.repository_owner_id" = "assertion.repository_owner_id"
+    "attribute.workflow_ref"        = "assertion.workflow_ref"
   }
 
   attribute_condition = <<-EOT
     assertion.repository_owner_id == "${var.github_repository_owner_id}" &&
     assertion.repository_id == "${var.github_repository_id}" &&
     assertion.repository == "${var.github_repository}" &&
+    assertion.workflow_ref.startsWith("${var.github_repository}/${var.plan_workflow_path}@") &&
     (
       (assertion.event_name == "pull_request" && assertion.base_ref == "${var.plan_base_ref}") ||
       (assertion.event_name == "workflow_dispatch" && assertion.ref == "${var.apply_ref}" && assertion.ref_type == "branch")
@@ -69,7 +70,7 @@ resource "google_iam_workload_identity_pool_provider" "apply" {
   workload_identity_pool_id          = google_iam_workload_identity_pool.apply.workload_identity_pool_id
   workload_identity_pool_provider_id = var.apply_provider_id
   display_name                       = "GitHub Terraform apply"
-  description                        = "Accepts protected-environment tokens from the immutable AfyaBridge repository identity and main branch."
+  description                        = "Accepts protected-environment tokens from the immutable AfyaBridge repository identity, exact apply workflow, and main branch."
   disabled                           = var.disabled
 
   attribute_mapping = {
@@ -78,17 +79,18 @@ resource "google_iam_workload_identity_pool_provider" "apply" {
     "attribute.deployment_role"     = "\"apply\""
     "attribute.environment"         = "assertion.environment"
     "attribute.event_name"          = "assertion.event_name"
-    "attribute.job_workflow_ref"    = "assertion.job_workflow_ref"
     "attribute.ref"                 = "assertion.ref"
     "attribute.repository"          = "assertion.repository"
     "attribute.repository_id"       = "assertion.repository_id"
     "attribute.repository_owner_id" = "assertion.repository_owner_id"
+    "attribute.workflow_ref"        = "assertion.workflow_ref"
   }
 
   attribute_condition = <<-EOT
     assertion.repository_owner_id == "${var.github_repository_owner_id}" &&
     assertion.repository_id == "${var.github_repository_id}" &&
     assertion.repository == "${var.github_repository}" &&
+    assertion.workflow_ref.startsWith("${var.github_repository}/${var.apply_workflow_path}@") &&
     assertion.ref == "${var.apply_ref}" &&
     assertion.ref_type == "branch" &&
     assertion.environment == "${var.apply_environment}" &&
