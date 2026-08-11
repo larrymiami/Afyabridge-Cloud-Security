@@ -45,7 +45,7 @@ Suggested capability split:
 |---|---:|---:|
 | List/read state objects | Required | Required |
 | Acquire and release Terraform state lock | Required when backend implementation needs it | Required |
-| Create/update state objects | No for ordinary PR planning | Required |
+| Create/update state objects | No for ordinary PR planning | Required for apply |
 | Delete historical state versions | No | No by default |
 | Change bucket IAM, retention, lifecycle, or encryption | No | Managed only by the separate bootstrap/foundation owner of the state bucket |
 
@@ -140,8 +140,48 @@ Each role addition should record:
 | Validation | Successful plan/apply and negative tests |
 | Review date | Scheduled reassessment |
 
+## Live bootstrap permission record
+
+The bootstrap root now has a live-validated steady-state permission set for `terraform-deployer`.
+
+The project-level read contract is implemented as the custom role:
+
+```text
+projects/afyabridge-bootstrap-260808-lm/roles/afyabridgeTerraformBootstrapReader
+```
+
+with:
+
+```text
+resourcemanager.projects.get
+serviceusage.services.get
+serviceusage.services.list
+cloudkms.keyRings.get
+cloudkms.cryptoKeys.get
+cloudkms.cryptoKeys.getIamPolicy
+iam.serviceAccounts.get
+storage.buckets.get
+storage.buckets.getIamPolicy
+```
+
+Bucket metadata mutation is separated into:
+
+```text
+projects/afyabridge-bootstrap-260808-lm/roles/afyabridgeTerraformStateBucketUpdater
+```
+
+containing only:
+
+```text
+storage.buckets.update
+```
+
+and conditionally bound to the protected Terraform state bucket only.
+
+This permission set was derived through live provider refresh behavior and a denied-before / allowed-after bucket-label mutation test. Temporary discovery roles were removed and a final Terraform refresh completed with no drift. See `docs/evidence/v0.7h-bootstrap-live-validation.md`.
+
 ## Current implementation boundary
 
-The example role sets remain empty. This is intentional: static module validation is complete, but the repository has not yet established a live Google Cloud resource inventory, state backend permissions, or deployment-specific permission set.
+The bootstrap execution identity now has a measured and live-validated steady-state permission set. This does not establish a universal role set for the foundation, network, workload, observability, edge, or GitHub-federated deployment identities.
 
-No claim of least privilege should be made until the exact roles are configured, applied, observed in use, and tested for both required access and denied excess access.
+Those later identities must continue to follow the same rule: exact roles and permissions are not considered least-privilege until they are configured, applied, observed in use, and tested for both required access and denied excess access.
