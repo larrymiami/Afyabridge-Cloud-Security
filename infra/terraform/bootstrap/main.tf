@@ -7,7 +7,7 @@ locals {
     data_class  = "internal"
   }
 
-  labels = merge(local.mandatory_labels, var.labels)
+  labels = merge(var.labels, local.mandatory_labels)
 }
 
 resource "google_project_service" "required" {
