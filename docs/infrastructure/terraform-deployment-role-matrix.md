@@ -180,6 +180,19 @@ and conditionally bound to the protected Terraform state bucket only.
 
 This permission set was derived through live provider refresh behavior and a denied-before / allowed-after bucket-label mutation test. Temporary discovery roles were removed and a final Terraform refresh completed with no drift. See `docs/evidence/v0.7h-bootstrap-live-validation.md`.
 
+### Bootstrap exception and residual boundaries
+
+The v0.7H local bootstrap exercise intentionally uses one `terraform-deployer` identity for both refresh and the tested bucket mutation. This is a **Stage-0 transitional exception** to the final federated plan/apply separation above; it must not be generalized to later workload deployment identities.
+
+The bucket updater is resource-scoped but not field-scoped. `storage.buckets.update` can authorize multiple bucket metadata changes on the allowed bucket, so it should be treated as apply capability and can be made JIT/time-bounded when standing bucket mutation is unnecessary.
+
+The current bootstrap bucket policy is managed by `google_storage_bucket_iam_policy.terraform_state`, which is authoritative for bucket-level IAM. Before later plan/apply identities share the state bucket, choose and review one ownership model:
+
+- centrally manage all required state principals in that authoritative bootstrap policy; or
+- migrate to non-authoritative IAM member resources before later identities are granted access.
+
+The service-account-scoped human Token Creator path used for v0.7H remains a lab bridge until GitHub Workload Identity Federation is live. It is not the final production-style operator path and should be removed or converted to JIT/break-glass access when federation replaces local execution.
+
 ## Current implementation boundary
 
 The bootstrap execution identity now has a measured and live-validated steady-state permission set. This does not establish a universal role set for the foundation, network, workload, observability, edge, or GitHub-federated deployment identities.
