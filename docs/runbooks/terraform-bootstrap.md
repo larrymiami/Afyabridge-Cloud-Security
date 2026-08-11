@@ -10,7 +10,7 @@ This runbook applies only to `infra/terraform/bootstrap`.
 
 It does not create organization folders, country projects, Shared VPCs, application workloads, databases, or deployment federation.
 
-The bootstrap stack starts with local state because its remote backend does not yet exist. Local state is sensitive and must remain on an encrypted operator workstation until migration is complete.
+The committed bootstrap root represents the **post-migration steady-state form** and therefore contains `backend "gcs" {}`. A first-ever bootstrap into an empty project is a one-time Stage-0 exception: create the bucket and KMS-backed state controls from a temporary local working copy with the backend block removed, preserve the local state securely, then restore the committed backend block and migrate that state to GCS. Do not commit the temporary local-backend edit.
 
 ## Preconditions
 
@@ -19,7 +19,7 @@ The bootstrap stack starts with local state because its remote backend does not 
 - The operator has only the temporary permissions required to enable services and create the bootstrap resources.
 - Terraform matches the version in `/.terraform-version`.
 - No service-account JSON key is present locally or in the repository.
-- A peer has reviewed the intended project ID, location, labels, retention period, and execution identity.
+- A peer has reviewed the intended project ID, location, labels, soft-delete window, noncurrent-state history lifecycle, and execution identity.
 
 ## Prepare the configuration
 
@@ -32,13 +32,40 @@ Populate `terraform.tfvars` with the approved bootstrap values. Do not commit th
 
 Confirm that the project, bucket, key-ring, key, and service-account names follow `docs/standards/terraform-naming-and-labeling.md`.
 
+Mandatory governance labels are reserved by the bootstrap root and must not be overridden through `var.labels`.
+
 ## Initialize and validate
 
+### Existing or already-migrated bootstrap
+
+Create a local ignored backend configuration such as:
+
+```hcl
+bucket             = "REPLACE_WITH_STATE_BUCKET"
+prefix             = "bootstrap/core"
+kms_encryption_key = "REPLACE_WITH_KMS_KEY_RESOURCE_NAME"
+```
+
+Then initialize the committed GCS backend:
+
 ```bash
-terraform init
+terraform init -reconfigure -backend-config=backend.hcl
 terraform fmt -check
 terraform validate
 ```
+
+### First-ever Stage-0 bootstrap
+
+The remote backend cannot be initialized before its bucket exists. For the initial creation only:
+
+1. make a temporary working copy of `infra/terraform/bootstrap` outside source control;
+2. remove only the `backend "gcs" {}` block from that temporary copy;
+3. initialize and apply using the default local backend;
+4. keep the resulting local state on the encrypted operator workstation;
+5. restore the committed post-migration configuration; and
+6. migrate the local state to the protected GCS backend using the migration procedure below.
+
+The temporary edit must never be committed, and the local state must not leave the approved workstation.
 
 Review the generated `.terraform.lock.hcl` and commit it before applying the stack.
 
@@ -95,7 +122,7 @@ Verify through Terraform outputs and Google Cloud inventory that:
 
 ## Establish the steady-state execution handoff
 
-The initial administrative bootstrap may need broader, temporary permissions than Terraform should retain for routine refresh and reviewed low-impact mutations.
+The initial administrative bootstrap may need broader, temporary permissions than Terraform should retain for routine refresh and reviewed mutations.
 
 The first live validation derived the following steady-state bootstrap read contract from actual provider behavior:
 
@@ -135,13 +162,13 @@ The validated live role ID is:
 afyabridgeTerraformBootstrapReader
 ```
 
-Bucket metadata mutation is deliberately separated from the read contract. Create a second custom role containing only:
+Bucket metadata mutation is deliberately separated from the read contract. The validated live updater role contains only:
 
 ```text
 storage.buckets.update
 ```
 
-The validated live role ID is:
+with role ID:
 
 ```text
 afyabridgeTerraformStateBucketUpdater
@@ -155,6 +182,14 @@ resource.type == 'storage.googleapis.com/Bucket'
 ```
 
 Do not replace these custom roles with broad `roles/storage.admin`, `roles/editor`, or other convenience roles.
+
+### Important updater boundary
+
+`storage.buckets.update` is resource-scoped by the IAM condition, but it is **not field-scoped**. On the allowed bucket it can authorize multiple classes of bucket metadata change, not only label edits. Treat it as an apply capability, not as part of the read-only plan contract.
+
+Where routine bucket mutation is not required, prefer granting the updater just in time for an approved change window and removing it afterward. The v0.7H label test proves that this permission is required for the tested bucket metadata mutation; it does not claim that every metadata field should be permanently writable.
+
+Bucket IAM mutation remains a separate privilege and requires its own reviewed permissions when Terraform must change the bucket policy.
 
 ### Operator impersonation
 
@@ -170,11 +205,24 @@ gcloud auth application-default print-access-token \
 
 Terraform can then use the same impersonation path through `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`.
 
+The v0.7H lab retained this service-account-scoped human impersonation path so the live bootstrap can be revalidated before GitHub federation is enabled. It is a transitional lab capability, not the final production-style identity path. Remove standing human impersonation once the reviewed Workload Identity Federation plan/apply identities are live, or make human impersonation time-bounded/JIT for break-glass and recovery use.
+
 ### Administrative ownership boundary
 
 The custom roles, their project bindings, and the service-account-level impersonation policy are Stage-0 administrative handoff artifacts. The routine `terraform-deployer` identity must not be granted permission to broaden or rewrite its own execution role merely so the bootstrap root can self-manage IAM.
 
 Until a separately reviewed administrative Terraform root or equivalent control plane owns these handoff artifacts, recreate or change them only through this documented, peer-reviewed, temporary-privilege procedure and retain evidence of the change.
+
+### State-bucket IAM ownership boundary
+
+The current bootstrap resource `google_storage_bucket_iam_policy.terraform_state` is authoritative for the bucket-level IAM policy and currently grants backend object administration only to `terraform-deployer`.
+
+That is acceptable for the present bootstrap-only validation boundary, but it creates an explicit future integration requirement: before separate federated plan/apply identities or later Terraform roots use this bucket, either:
+
+1. manage every required state principal centrally in the authoritative bootstrap policy; or
+2. migrate the bucket policy to reviewed non-authoritative IAM member resources.
+
+Do not add later bucket principals out of band and assume they will survive a bootstrap apply. The selected ownership model must be reviewed before the shared state bucket is used by additional deployment identities.
 
 ## Validate least privilege
 
@@ -203,9 +251,11 @@ For a new mutation permission, do not infer access from a predefined role. Use a
 
 The v0.7H bucket-label test proved `storage.buckets.update` using this denied-before / allowed-after method.
 
+The steady-state reader is a refresh contract, not a promise that every future drift-remediation apply will succeed without additional approved JIT permissions. For example, API enablement and IAM-policy remediation remain privileged mutations and should fail closed until their exact write permissions are deliberately granted.
+
 ## Migrate bootstrap state to GCS
 
-Create a temporary backend configuration file outside source control:
+The committed root already contains the reviewed `backend "gcs" {}` block. From the Stage-0 local working state, create a temporary ignored backend configuration file:
 
 ```hcl
 bucket             = "REPLACE_WITH_STATE_BUCKET"
@@ -213,7 +263,7 @@ prefix             = "bootstrap/core"
 kms_encryption_key = "REPLACE_WITH_KMS_KEY_RESOURCE_NAME"
 ```
 
-Add the reviewed `backend "gcs" {}` block to the bootstrap root, then migrate:
+Restore the committed post-migration configuration, then migrate:
 
 ```bash
 terraform init -migrate-state -backend-config=backend.hcl
