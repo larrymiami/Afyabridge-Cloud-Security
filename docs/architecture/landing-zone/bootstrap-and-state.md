@@ -36,7 +36,7 @@ The bootstrap layer does not host application workloads, application secrets, bu
 
 ## 4. Bootstrap project
 
-The initial bootstrap project is:
+The target bootstrap project naming pattern is represented by:
 
 ```text
 afyabridge-bootstrap-core
@@ -60,6 +60,16 @@ The bootstrap project must have:
 - no user-managed service-account keys;
 - restricted human access;
 - version-controlled configuration.
+
+### 4.1 Live validation instance
+
+The first live bootstrap validation was performed in the dedicated lab project:
+
+```text
+afyabridge-bootstrap-260808-lm
+```
+
+The validation instance is evidence for the bootstrap control design, not a claim that the later production-style organization hierarchy has been deployed. The live validation record is `docs/evidence/v0.7h-bootstrap-live-validation.md`.
 
 ## 5. Bootstrap sequence
 
@@ -90,6 +100,8 @@ Stage 0 must use:
 - an execution log retained as bootstrap evidence.
 
 After Stage 0, routine infrastructure changes move to CI/CD.
+
+The v0.7H live validation exercised the current Terraform bootstrap root and its state, KMS, service-account, project-service, and IAM resources. GitHub Workload Identity Federation remains a separate live-validation requirement and was not claimed by that exercise.
 
 ### 5.2 Stage 1 — CI/CD-managed landing zone
 
@@ -195,6 +207,18 @@ Examples:
 
 No application workload identity may read Terraform state.
 
+### 7.3 Validated bootstrap execution identity
+
+The live bootstrap validation uses:
+
+```text
+terraform-deployer@afyabridge-bootstrap-260808-lm.iam.gserviceaccount.com
+```
+
+Steady-state project refresh permissions were reduced to a nine-permission custom reader, while `storage.buckets.update` is isolated in a second custom role conditionally scoped to the protected state bucket. Backend object access remains governed separately at the bucket level.
+
+This split was validated with a denied-before / allowed-after mutation test and a final zero-change Terraform plan after temporary discovery grants were removed.
+
 ## 8. State locking and concurrency
 
 Terraform operations against the same state boundary must not run concurrently.
@@ -245,6 +269,8 @@ Recommended separation:
 - production country-specific apply identities;
 - project-factory identity;
 - break-glass identity outside normal CI/CD.
+
+The v0.7H bootstrap validation used local ADC plus short-lived service-account impersonation to validate the Google Cloud side of the execution-identity boundary. It did **not** validate GitHub OIDC token exchange, repository variables, provider attribute conditions, or protected-environment enforcement.
 
 ## 11. Terraform workflow
 
@@ -332,7 +358,15 @@ Break-glass procedures may restore state access, federation configuration, or es
 
 ## 16. Validation
 
-The design will be validated by demonstrating that:
+The design is validated incrementally. v0.7H has demonstrated that:
+
+- the bootstrap Terraform root can refresh a live Google Cloud control plane through service-account impersonation without a downloaded key;
+- the protected state bucket and KMS resources are live and drift-free after validation;
+- the bootstrap provider refresh contract can operate with a reduced custom read role;
+- a controlled bucket mutation fails without `storage.buckets.update` and succeeds after that exact permission is granted; and
+- temporary bootstrap and discovery privileges can be removed without breaking steady-state Terraform refresh.
+
+The following remain to be demonstrated separately:
 
 - GitHub Actions authenticates without a service-account key;
 - unapproved repositories and branches cannot federate;
@@ -341,12 +375,18 @@ The design will be validated by demonstrating that:
 - application identities cannot read the state bucket;
 - object versioning can recover a deleted or damaged test state;
 - concurrent applies to the same boundary are blocked;
-- public access to the state bucket is prevented;
-- Terraform changes are traceable to reviewed commits.
+- public access to the state bucket is prevented through live negative testing; and
+- Terraform changes are traceable end-to-end from reviewed GitHub commits through the live deployment path.
 
 ## 17. Evidence
 
-Expected evidence includes:
+Current live bootstrap evidence is recorded in:
+
+```text
+docs/evidence/v0.7h-bootstrap-live-validation.md
+```
+
+Additional expected evidence includes:
 
 - Terraform backend configuration;
 - bucket and KMS policy output;
@@ -384,4 +424,6 @@ Mapped objectives include:
 
 ## 19. Implementation status
 
-**Designed** — the bootstrap and state architecture is defined but has not yet been provisioned or validated.
+**Partially live-validated** — the protected Terraform bootstrap control plane has been provisioned and validated in a dedicated Google Cloud lab project, including remote state, CMEK protection, service-account impersonation, least-privilege refresh permissions, a controlled mutation test, temporary-privilege cleanup, and a final zero-change plan.
+
+GitHub Workload Identity Federation and the later foundation, network, workload, observability, and edge stacks remain implemented/design artifacts pending their own live validation.
