@@ -94,7 +94,7 @@ resource "google_iam_workload_identity_pool_provider" "apply" {
     assertion.ref == "${var.apply_ref}" &&
     assertion.ref_type == "branch" &&
     assertion.environment == "${var.apply_environment}" &&
-    (assertion.event_name == "push" || assertion.event_name == "workflow_dispatch")
+    assertion.event_name == "workflow_dispatch"
   EOT
 
   oidc {
