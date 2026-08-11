@@ -47,7 +47,15 @@ variable "state_history_days" {
 }
 
 variable "labels" {
-  description = "Additional labels applied to bootstrap resources."
+  description = "Additional labels applied to bootstrap resources. Mandatory governance labels cannot be overridden."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition = length(setintersection(
+      toset(keys(var.labels)),
+      toset(["application", "component", "environment", "managed_by", "data_class"]),
+    )) == 0
+    error_message = "labels must not redefine mandatory governance labels: application, component, environment, managed_by, or data_class."
+  }
 }
