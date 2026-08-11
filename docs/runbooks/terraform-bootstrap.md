@@ -93,6 +93,116 @@ Verify through Terraform outputs and Google Cloud inventory that:
 - IAM bindings match the reviewed plan;
 - audit logging is available for storage, KMS, IAM, and service-account administration.
 
+## Establish the steady-state execution handoff
+
+The initial administrative bootstrap may need broader, temporary permissions than Terraform should retain for routine refresh and reviewed low-impact mutations.
+
+The first live validation derived the following steady-state bootstrap read contract from actual provider behavior:
+
+```text
+resourcemanager.projects.get
+serviceusage.services.get
+serviceusage.services.list
+cloudkms.keyRings.get
+cloudkms.cryptoKeys.get
+cloudkms.cryptoKeys.getIamPolicy
+iam.serviceAccounts.get
+storage.buckets.get
+storage.buckets.getIamPolicy
+```
+
+Create the project custom reader with a short-lived administrative identity:
+
+```yaml
+title: "AfyaBridge Terraform Bootstrap Reader"
+description: "Least-privilege steady-state read permissions for the AfyaBridge Terraform bootstrap stack."
+stage: "GA"
+includedPermissions:
+- resourcemanager.projects.get
+- serviceusage.services.get
+- serviceusage.services.list
+- cloudkms.keyRings.get
+- cloudkms.cryptoKeys.get
+- cloudkms.cryptoKeys.getIamPolicy
+- iam.serviceAccounts.get
+- storage.buckets.get
+- storage.buckets.getIamPolicy
+```
+
+The validated live role ID is:
+
+```text
+afyabridgeTerraformBootstrapReader
+```
+
+Bucket metadata mutation is deliberately separated from the read contract. Create a second custom role containing only:
+
+```text
+storage.buckets.update
+```
+
+The validated live role ID is:
+
+```text
+afyabridgeTerraformStateBucketUpdater
+```
+
+Bind the updater only to the protected Terraform state bucket using a resource condition equivalent to:
+
+```text
+resource.type == 'storage.googleapis.com/Bucket'
+&& resource.name == 'projects/_/buckets/<STATE_BUCKET_NAME>'
+```
+
+Do not replace these custom roles with broad `roles/storage.admin`, `roles/editor`, or other convenience roles.
+
+### Operator impersonation
+
+The operator must not use a downloaded service-account key. Grant `roles/iam.serviceAccountTokenCreator` on the individual Terraform service account, not project-wide, to the approved operator or later federation principal that needs to impersonate it.
+
+Verify impersonation with short-lived credentials before Terraform execution:
+
+```bash
+gcloud auth application-default print-access-token \
+  --impersonate-service-account="$TF_SA" \
+  >/dev/null
+```
+
+Terraform can then use the same impersonation path through `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`.
+
+### Administrative ownership boundary
+
+The custom roles, their project bindings, and the service-account-level impersonation policy are Stage-0 administrative handoff artifacts. The routine `terraform-deployer` identity must not be granted permission to broaden or rewrite its own execution role merely so the bootstrap root can self-manage IAM.
+
+Until a separately reviewed administrative Terraform root or equivalent control plane owns these handoff artifacts, recreate or change them only through this documented, peer-reviewed, temporary-privilege procedure and retain evidence of the change.
+
+## Validate least privilege
+
+A steady-state validation must include both positive and negative evidence.
+
+For refresh:
+
+```bash
+terraform plan
+```
+
+Expected result after discovery grants are removed:
+
+```text
+No changes. Your infrastructure matches the configuration.
+```
+
+For a new mutation permission, do not infer access from a predefined role. Use a reversible test where practical:
+
+1. attempt the reviewed mutation without the candidate write permission;
+2. record the exact denied permission;
+3. grant only that permission at the narrowest practical scope;
+4. repeat the same mutation;
+5. revert the test change through Terraform; and
+6. rerun a final zero-change plan.
+
+The v0.7H bucket-label test proved `storage.buckets.update` using this denied-before / allowed-after method.
+
 ## Migrate bootstrap state to GCS
 
 Create a temporary backend configuration file outside source control:
@@ -152,7 +262,12 @@ Manual state modification requires an incident or approved change record.
 - output resource identifiers;
 - post-apply verification results;
 - state-migration result;
+- denied and allowed permission tests used for least-privilege discovery;
+- final custom-role permission definitions and scopes;
+- proof that temporary discovery/administrative bindings were removed;
 - final zero-change plan;
 - reviewer and exception records.
 
 Evidence must not contain state contents, access tokens, credentials, secrets, or real patient data.
+
+The first live bootstrap evidence record is `docs/evidence/v0.7h-bootstrap-live-validation.md`.
