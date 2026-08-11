@@ -113,7 +113,7 @@ The `storage.buckets.update` permission is resource-scoped by the condition but 
 
 The human Token Creator binding used during v0.7H is scoped to the single Terraform service account and retained only as a transitional lab bridge before federation is live. It is not the final production-style operator access model.
 
-The current state-bucket IAM resource is authoritative for bucket-level IAM. Before later plan/apply identities share the bucket, the project must either manage all required state principals centrally in that policy or migrate to non-authoritative IAM member resources.
+Bucket backend IAM must be managed additively. The reviewer security gate rejected the authoritative bucket-policy resource, so the branch now uses `google_storage_bucket_iam_member.terraform_state_object_admin`. The state handoff from the earlier authoritative policy is declared with `removed { destroy = false }` to avoid clearing the live bucket policy while management moves to the additive member resource.
 
 ### Concurrency
 
@@ -146,6 +146,12 @@ Rejected because it would:
 
 Rejected because long-lived credentials can be leaked, copied, or used outside the intended workflow.
 
+### Authoritative state-bucket IAM policy
+
+Rejected after reviewer validation. A whole-policy resource can remove unrelated bucket principals and conflicts with the repository policy requiring additive IAM management.
+
+The bootstrap root therefore uses an additive IAM member for its backend principal. Additional state principals must also be introduced through reviewed additive IAM ownership rather than by replacing the whole bucket policy.
+
 ### Manual infrastructure management after bootstrap
 
 Rejected because it would create configuration drift and weaken review, traceability, and repeatability.
@@ -167,6 +173,7 @@ Deferred because the initial landing zone does not require that level of duplica
 - Application identities cannot access management-plane state.
 - Bootstrap responsibilities remain isolated from workloads.
 - Live provider permissions can be measured rather than approximated with broad administrative roles.
+- Additive bucket IAM avoids whole-policy replacement when later state principals are introduced.
 
 ### Negative
 
@@ -177,7 +184,7 @@ Deferred because the initial landing zone does not require that level of duplica
 - Workload identity federation conditions require careful testing.
 - The bootstrap project becomes a critical management-plane dependency.
 - `storage.buckets.update` cannot be restricted to labels or one metadata field through the custom role alone.
-- An authoritative bucket IAM policy requires explicit ownership coordination before later state identities are added.
+- The reviewer-driven IAM resource migration requires one additional live state handoff and temporary bucket-IAM write capability before the latest branch can again be considered drift-free.
 
 ### Risks
 
@@ -187,7 +194,7 @@ Deferred because the initial landing zone does not require that level of duplica
 - A disabled or destroyed encryption key could prevent state recovery.
 - Concurrency failures could corrupt or desynchronize state.
 - A compromised apply-capable bootstrap identity could alter protected bucket metadata within the scope of its bucket updater permission.
-- A later out-of-band bucket IAM grant could be removed by the authoritative bootstrap policy if ownership is not coordinated.
+- Incorrect migration from authoritative to additive IAM could disturb backend access if the old policy were destroyed rather than removed from state without remote deletion.
 
 ## Required controls
 
@@ -203,7 +210,9 @@ Deferred because the initial landing zone does not require that level of duplica
 - pipeline concurrency controls;
 - break-glass recovery procedure;
 - periodic verification that no user-managed CI/CD keys exist;
-- explicit review of the state-bucket IAM ownership model before additional backend principals are added; and
+- additive state-bucket IAM management;
+- a reviewed `removed { destroy = false }` handoff for the historical authoritative bucket-policy state;
+- final no-drift validation after the additive IAM migration; and
 - removal or JIT conversion of standing human bootstrap impersonation after federation handoff.
 
 ## Validation
@@ -218,17 +227,20 @@ The v0.7H live bootstrap exercise has demonstrated that:
 - steady-state provider read requirements can be reduced to a measured custom role;
 - a reversible bucket mutation is denied without `storage.buckets.update` and succeeds after that exact permission is granted;
 - the mutation can be reverted cleanly; and
-- temporary project-level bootstrap and discovery grants can be removed while a final Terraform plan remains drift-free.
+- temporary project-level bootstrap and discovery grants can be removed while that validated configuration remains drift-free.
+
+Reviewer validation subsequently found the authoritative bucket-IAM resource and rejected it through the OPA `terraform-no-authoritative-iam-policy` rule. The branch has been corrected to additive IAM, but the live state handoff and final zero-change plan for that reviewer fix remain pending.
 
 The following remain pending validation:
 
+- the additive bucket-IAM state migration completes without clearing or broadening live access;
+- a final zero-change plan succeeds after that migration and temporary IAM-write permission is removed;
 - GitHub Actions successfully authenticates through workload identity federation;
 - unapproved branches or repositories cannot federate;
 - the standing human lab impersonation path is removed or converted to JIT after federation handoff;
 - non-production identities cannot read or write production state;
 - one country identity cannot modify another country’s state;
 - application identities cannot access the state bucket;
-- the final multi-principal state-bucket IAM ownership model works without clobbering later identities;
 - a deleted test state can be recovered from an earlier version;
 - concurrent applies against the same state are prevented; and
 - later CI/CD apply operations are traceable end-to-end to approved commits.
@@ -245,6 +257,6 @@ The following remain pending validation:
 
 ## Implementation status
 
-**Partially live-validated** — the protected Terraform bootstrap control plane, remote state, CMEK protection, scoped service-account impersonation, measured steady-state IAM, controlled mutation behavior, and privilege cleanup have been exercised in a dedicated Google Cloud lab project.
+**Partially live-validated** — the protected Terraform bootstrap control plane, remote state, CMEK protection, scoped service-account impersonation, measured steady-state IAM, controlled mutation behavior, and temporary project-level privilege cleanup have been exercised in a dedicated Google Cloud lab project.
 
-The current human impersonation path and bucket updater remain transitional bootstrap-lab capabilities. GitHub Workload Identity Federation, final plan/apply separation, later state-bucket principal ownership, and the foundation, network, workload, observability, and edge deployment paths remain pending live validation.
+The reviewer-hardened additive bucket-IAM resource model is implemented but still needs its live state handoff and final no-drift proof. The current human impersonation path and bucket updater remain transitional bootstrap-lab capabilities. GitHub Workload Identity Federation, final plan/apply separation, and the foundation, network, workload, observability, and edge deployment paths remain pending live validation.
