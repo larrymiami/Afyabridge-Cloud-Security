@@ -195,7 +195,7 @@ At minimum, state is separated into:
 
 Application and service-level states will be introduced in later phases and must not share write access with the landing-zone state.
 
-Before later roots or federated identities share the live bootstrap state bucket, the bucket IAM ownership model must be reviewed and extended safely.
+Before later roots or federated identities share the live bootstrap state bucket, backend permissions must be re-reviewed and extended additively.
 
 ## 7. State access model
 
@@ -251,14 +251,31 @@ The bucket updater is resource-scoped but not field-scoped. `storage.buckets.upd
 
 ### 7.4 State-bucket IAM ownership
 
-The current bootstrap code uses `google_storage_bucket_iam_policy.terraform_state`, which is authoritative for bucket-level IAM and currently grants backend object administration to `terraform-deployer`.
+Repository policy requires additive IAM management for the state bucket. The reviewer security gate rejected the earlier authoritative `google_storage_bucket_iam_policy.terraform_state` resource because a whole-policy write can remove unrelated principals.
 
-Before later plan/apply identities use the same bucket, choose one reviewed ownership model:
+The branch now manages the bootstrap backend principal with:
 
-1. centrally manage every required state principal in the authoritative bootstrap policy; or
-2. migrate to non-authoritative IAM member resources before granting later identities access.
+```text
+google_storage_bucket_iam_member.terraform_state_object_admin
+```
 
-Out-of-band bucket IAM grants must not be assumed to persist while an authoritative Terraform policy owns the bucket.
+The migration includes:
+
+```hcl
+removed {
+  from = google_storage_bucket_iam_policy.terraform_state
+
+  lifecycle {
+    destroy = false
+  }
+}
+```
+
+This hands the old authoritative policy resource out of Terraform state without deleting the live bucket policy. The additive member resource then takes ownership only of the `terraform-deployer` Object Admin membership.
+
+The reviewer-hardened code still requires one live migration apply and a final zero-change plan before the latest branch head can be called live drift-free. The migration requires temporary, narrowly scoped bucket IAM write capability; that permission must be removed after the handoff.
+
+Later plan/apply identities must be added through reviewed additive IAM resources and re-evaluated against the intended state/prefix isolation model.
 
 ## 8. State locking and concurrency
 
@@ -404,17 +421,20 @@ Break-glass procedures may restore state access, federation configuration, or es
 The design is validated incrementally. v0.7H has demonstrated that:
 
 - the bootstrap Terraform root can refresh a live Google Cloud control plane through service-account impersonation without a downloaded key;
-- the protected state bucket and KMS resources are live and drift-free after validation;
+- the protected state bucket and KMS resources were live and drift-free at the end of the initial validation exercise;
 - the bootstrap provider refresh contract can operate with a reduced custom read role;
 - a controlled bucket mutation fails without `storage.buckets.update` and succeeds after that exact permission is granted; and
 - temporary project-level bootstrap and discovery privileges can be removed without breaking steady-state Terraform refresh.
 
+Reviewer validation subsequently rejected the authoritative state-bucket IAM resource. The additive IAM replacement is implemented in the branch and passes the repository policy model, but its live state migration and final zero-change plan remain pending.
+
 The following remain to be demonstrated separately:
 
+- the additive bucket-IAM migration completes without deleting or broadening backend access;
+- the latest branch returns to a zero-change plan after migration and temporary IAM write access is removed;
 - GitHub Actions authenticates without a service-account key;
 - unapproved repositories and branches cannot federate;
 - the transitional human Token Creator bridge is removed or converted to JIT after federation handoff;
-- the final multi-principal state-bucket IAM ownership model is validated;
 - a non-production deployer cannot write production state;
 - one country deployer cannot write another country’s state;
 - application identities cannot read the state bucket;
@@ -469,6 +489,6 @@ Mapped objectives include:
 
 ## 19. Implementation status
 
-**Partially live-validated** — the protected Terraform bootstrap control plane has been provisioned and validated in a dedicated Google Cloud lab project, including remote state, CMEK protection, service-account impersonation, measured refresh permissions, a controlled mutation test, temporary project-level privilege cleanup, and a final zero-change plan.
+**Partially live-validated** — the protected Terraform bootstrap control plane has been provisioned and validated in a dedicated Google Cloud lab project, including remote state, CMEK protection, service-account impersonation, measured refresh permissions, a controlled mutation test, temporary project-level privilege cleanup, and a zero-change plan for the initially validated configuration.
 
-The current human impersonation bridge, bucket updater, and authoritative state-bucket IAM ownership are transitional bootstrap-lab boundaries that must be revisited during federation handoff. GitHub Workload Identity Federation and the later foundation, network, workload, observability, and edge stacks remain implemented/design artifacts pending their own live validation.
+The reviewer-hardened additive bucket-IAM model is implemented but still requires its live state handoff and final no-drift proof. The current human impersonation bridge and bucket updater remain transitional bootstrap-lab boundaries that must be revisited during federation handoff. GitHub Workload Identity Federation and the later foundation, network, workload, observability, and edge stacks remain implemented/design artifacts pending their own live validation.
