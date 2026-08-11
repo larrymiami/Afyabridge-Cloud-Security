@@ -13,9 +13,9 @@ locals {
 resource "google_project_service" "required" {
   for_each = toset([
     "cloudkms.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
-    "storage.googleapis.com",
   ])
 
   project            = var.bootstrap_project_id
@@ -23,11 +23,22 @@ resource "google_project_service" "required" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "storage" {
+  project            = var.bootstrap_project_id
+  service            = "storage.googleapis.com"
+  disable_on_destroy = false
+}
+
+moved {
+  from = google_project_service.required["storage.googleapis.com"]
+  to   = google_project_service.storage
+}
+
 data "google_storage_project_service_account" "gcs" {
   project = var.bootstrap_project_id
 
   depends_on = [
-    google_project_service.required["storage.googleapis.com"],
+    google_project_service.storage,
   ]
 }
 
@@ -106,7 +117,7 @@ resource "google_storage_bucket" "terraform_state" {
   }
 
   depends_on = [
-    google_project_service.required["storage.googleapis.com"],
+    google_project_service.storage,
     google_kms_crypto_key_iam_member.terraform_state_storage_service_agent,
   ]
 }
