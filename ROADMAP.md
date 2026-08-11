@@ -135,7 +135,7 @@
 ## v0.7 — Infrastructure as code and secure GCP deployment
 
 **Status:** In review  
-**Control state:** Implemented and statically validated; live deployment validation pending
+**Control state:** Implemented and statically validated; bootstrap control plane live-validated; later stacks pending live validation
 
 - [x] Implement the protected Terraform bootstrap, remote state, encryption, and execution-identity foundation
 - [x] Implement the project factory and authoritative multi-country project inventory
@@ -171,17 +171,19 @@
 - [x] Implement regional Cloud Armor policies with preview-first OWASP CRS 4.22 WAF rules, per-IP throttling, verbose logging, and backend attachment
 - [x] Implement country-scoped public DNS contracts, regional DNS authorizations, Google-managed certificates, TLS 1.2+ HTTPS listeners, and HTTP-to-HTTPS redirects
 - [x] Add public-edge architecture documentation, deployment and rollback runbook, negative-test matrix, and v0.7G static-validation evidence
-- [ ] Bootstrap and live-validate Workload Identity Federation, repository variables, protected environment controls, and deployment IAM
-- [ ] Apply and validate the bootstrap, foundation, network, workload, observability, and edge stacks in a reviewed Google Cloud environment
+- [x] Live-validate the Terraform bootstrap control plane, remote state, CMEK, service-account impersonation, exact steady-state deployment IAM, controlled mutation behavior, and temporary-privilege cleanup
+- [x] Add v0.7H live bootstrap validation evidence
+- [ ] Live-validate Workload Identity Federation, repository variables, protected environment controls, and CI deployment IAM
+- [ ] Apply and validate the foundation, network, workload, observability, and edge stacks in a reviewed Google Cloud environment
 - [ ] Live-validate logging delivery, country isolation, notification channels, monitoring alerts, detection metrics, detection alerts, and responder workflows
 - [ ] Live-validate DNS delegation, certificate issuance, HTTPS routing, origin-bypass prevention, Cloud Armor behavior, edge logging, and country-specific public ingress
-- [ ] Add live deployment, rollback, recovery, and runtime validation evidence
+- [ ] Add later-stack live deployment, rollback, recovery, and runtime validation evidence
 
-**Validated:** Terraform foundation workflow run #240 on commit `5e0670210616ff795690f4f6a2d9c01d32bcaca4` completed recursive formatting checks and backend-free initialization and static validation for the repository Terraform roots, including bootstrap, foundation, network, workload, federation, observability, and edge. Earlier v0.7 evidence remains valid for the revisions it records. Workload Identity Federation, observability, public DNS, certificates, Cloud Armor, and edge routing remain unvalidated against live GitHub and Google Cloud execution.
+**Validated:** Terraform foundation workflow run #240 on commit `5e0670210616ff795690f4f6a2d9c01d32bcaca4` completed recursive formatting checks and backend-free initialization and static validation for the repository Terraform roots, including bootstrap, foundation, network, workload, federation, observability, and edge. Earlier v0.7 evidence remains valid for the revisions it records. v0.7H additionally live-validated the protected Terraform bootstrap control plane in project `afyabridge-bootstrap-260808-lm`: remote state and CMEK-backed state protection, local ADC to service-account impersonation without a downloaded key, the provider's nine-permission steady-state read contract, an explicit denied-before / allowed-after `storage.buckets.update` mutation test, replacement of broad discovery roles with custom roles, removal of temporary IAM grants, and a final zero-change Terraform plan. Detailed evidence is recorded in `docs/evidence/v0.7h-bootstrap-live-validation.md`.
 
-**Current boundary:** No v0.7 infrastructure has yet been applied to a live Google Cloud organization. Workload Identity Federation token exchange, service-account impersonation, protected-environment enforcement, exact deployment IAM, folder creation, project placement, effective organization policies, budgets, remote state, routes, DNS, firewall enforcement, private-service connectivity, managed-service agents, CMEK effectiveness, Artifact Registry behavior, secret access, Cloud Run ingress and egress, Cloud SQL backup and restore, storage recovery, log delivery, sink writer behavior, log retention, cross-country telemetry isolation, notification delivery, alert triggering and recovery, log-based metric increments, detection fidelity, responder escalation, DNS delegation, certificate issuance and renewal, TLS negotiation, HTTP redirects, Cloud Run origin-bypass prevention, Cloud Armor WAF and throttling behavior, country-specific edge routing, public ingress logging, rollback, recovery, and drift remain deployment-validation requirements.
+**Current boundary:** Live validation is currently limited to the bootstrap control plane. GitHub Workload Identity Federation token exchange, repository variables, protected-environment enforcement, CI plan/apply identities, folder creation, project placement, effective organization policies, budgets, Shared VPC routes and firewall enforcement, private-service connectivity, managed-service agents, workload CMEK behavior, Artifact Registry behavior, secret access, Cloud Run ingress and egress, Cloud SQL backup and restore, workload storage recovery, log delivery, sink writer behavior, log retention, cross-country telemetry isolation, notification delivery, alert triggering and recovery, log-based metric increments, detection fidelity, responder escalation, DNS delegation, certificate issuance and renewal, TLS negotiation, HTTP redirects, Cloud Run origin-bypass prevention, Cloud Armor WAF and throttling behavior, country-specific edge routing, public ingress logging, later-stack rollback, recovery, and drift remain deployment-validation requirements.
 
-**Primary outcome:** Reproducible infrastructure and a keyless deployment-control path with implemented country-isolated workloads, observability, detections, and protected public edge controls, without claiming unperformed live validation.
+**Primary outcome:** Reproducible infrastructure and a keyless deployment-control design with a now live-validated least-privilege bootstrap control plane, while country-isolated foundations, workloads, observability, detections, federation, and protected public edge controls remain explicitly pending their own live validation.
 
 ---
 

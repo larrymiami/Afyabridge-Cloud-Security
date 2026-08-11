@@ -1,5 +1,5 @@
 output "state_bucket_name" {
-  description = "Protected GCS bucket used by later Terraform root configurations."
+  description = "Protected GCS bucket used by the bootstrap root and intended for later Terraform state after separately reviewed backend IAM is added."
   value       = google_storage_bucket.terraform_state.name
 }
 

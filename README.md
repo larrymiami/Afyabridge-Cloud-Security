@@ -57,7 +57,7 @@ The target platform includes:
 - GitHub Actions using Workload Identity Federation;
 - signed artifacts, SBOMs, and build attestations.
 
-The repository already contains an implemented application-security baseline, Terraform infrastructure for the Google Cloud foundation and country workloads, shift-left security gates, and software supply-chain controls. Infrastructure has been statically validated in CI, but the Google Cloud stacks have not yet been applied and validated in a live organization. Workload Identity Federation, live deployment IAM, Artifact Registry signing/promotion, deployment-time provenance enforcement, and runtime control effectiveness therefore remain explicit validation work rather than assumed outcomes.
+The repository already contains an implemented application-security baseline, Terraform infrastructure for the Google Cloud foundation and country workloads, shift-left security gates, and software supply-chain controls. Infrastructure has been statically validated in CI, and the protected Terraform bootstrap control plane has now been applied and live-validated in a dedicated Google Cloud project using short-lived service-account impersonation and least-privilege custom IAM roles. The remaining foundation, network, workload, observability, edge, GitHub Workload Identity Federation, protected-environment, and runtime controls remain explicit live-validation work rather than assumed outcomes.
 
 ## Current security pipeline
 
@@ -97,7 +97,7 @@ See [ROADMAP.md](./ROADMAP.md) for the detailed implementation plan and the dist
 
 ## Repository status
 
-The project is in active implementation and validation. The application-security baseline is implemented and validated; the Google Cloud infrastructure is implemented and statically validated with live deployment still pending; the shift-left CI/CD and software supply-chain milestones are in review.
+The project is in active implementation and validation. The application-security baseline is implemented and validated; the Google Cloud infrastructure is implemented and statically validated, with the Terraform bootstrap control plane additionally live-validated and later stacks still pending live deployment; the shift-left CI/CD and software supply-chain controls are implemented and validated in repository CI.
 
 ## Data and safety
 
@@ -105,7 +105,7 @@ The project is in active implementation and validation. The application-security
 - No real patient or employee records are included.
 - No production credentials are stored in the repository.
 - Intentionally vulnerable components will only run in isolated lab environments.
-- Cloud resources will include documented cleanup procedures and cost controls before live deployment.
+- Cloud resources include or will include documented cleanup procedures and cost controls before each live deployment stage.
 
 ## License
 

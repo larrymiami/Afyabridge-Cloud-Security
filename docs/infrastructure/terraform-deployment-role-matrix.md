@@ -45,7 +45,7 @@ Suggested capability split:
 |---|---:|---:|
 | List/read state objects | Required | Required |
 | Acquire and release Terraform state lock | Required when backend implementation needs it | Required |
-| Create/update state objects | No for ordinary PR planning | Required |
+| Create/update state objects | No for ordinary PR planning | Required for apply |
 | Delete historical state versions | No | No by default |
 | Change bucket IAM, retention, lifecycle, or encryption | No | Managed only by the separate bootstrap/foundation owner of the state bucket |
 
@@ -140,8 +140,62 @@ Each role addition should record:
 | Validation | Successful plan/apply and negative tests |
 | Review date | Scheduled reassessment |
 
+## Live bootstrap permission record
+
+The bootstrap root now has a live-validated steady-state permission set for `terraform-deployer`.
+
+The project-level read contract is implemented as the custom role:
+
+```text
+projects/afyabridge-bootstrap-260808-lm/roles/afyabridgeTerraformBootstrapReader
+```
+
+with:
+
+```text
+resourcemanager.projects.get
+serviceusage.services.get
+serviceusage.services.list
+cloudkms.keyRings.get
+cloudkms.cryptoKeys.get
+cloudkms.cryptoKeys.getIamPolicy
+iam.serviceAccounts.get
+storage.buckets.get
+storage.buckets.getIamPolicy
+```
+
+Bucket metadata mutation is separated into:
+
+```text
+projects/afyabridge-bootstrap-260808-lm/roles/afyabridgeTerraformStateBucketUpdater
+```
+
+containing only:
+
+```text
+storage.buckets.update
+```
+
+and conditionally bound to the protected Terraform state bucket only.
+
+This permission set was derived through live provider refresh behavior and a denied-before / allowed-after bucket-label mutation test. Temporary discovery roles were removed and a final Terraform refresh completed with no drift. See `docs/evidence/v0.7h-bootstrap-live-validation.md`.
+
+### Bootstrap exception and residual boundaries
+
+The v0.7H local bootstrap exercise intentionally uses one `terraform-deployer` identity for both refresh and the tested bucket mutation. This is a **Stage-0 transitional exception** to the final federated plan/apply separation above; it must not be generalized to later workload deployment identities.
+
+The bucket updater is resource-scoped but not field-scoped. `storage.buckets.update` can authorize multiple bucket metadata changes on the allowed bucket, so it should be treated as apply capability and can be made JIT/time-bounded when standing bucket mutation is unnecessary.
+
+The reviewer security gate rejected the authoritative `google_storage_bucket_iam_policy` resource. The branch now uses the additive `google_storage_bucket_iam_member.terraform_state_object_admin` resource instead and includes a `removed { destroy = false }` handoff for the old policy state. This prevents a later bootstrap apply from claiming ownership of the entire bucket IAM policy merely to retain the Terraform backend principal.
+
+The additive-IAM migration still requires one reviewed live state handoff before the current branch can be called drift-free at its latest head. That migration must use the exact bucket IAM write permission required by the provider and must be followed by a zero-change plan.
+
+The service-account-scoped human Token Creator path used for v0.7H remains a lab bridge until GitHub Workload Identity Federation is live. It is not the final production-style operator path and should be removed or converted to JIT/break-glass access when federation replaces local execution.
+
 ## Current implementation boundary
 
-The example role sets remain empty. This is intentional: static module validation is complete, but the repository has not yet established a live Google Cloud resource inventory, state backend permissions, or deployment-specific permission set.
+The bootstrap execution identity now has a measured and live-validated steady-state permission set. The additive bucket-IAM ownership change is reviewer-hardened in code but still requires its final live state handoff and no-drift proof.
 
-No claim of least privilege should be made until the exact roles are configured, applied, observed in use, and tested for both required access and denied excess access.
+This does not establish a universal role set for the foundation, network, workload, observability, edge, or GitHub-federated deployment identities.
+
+Those later identities must continue to follow the same rule: exact roles and permissions are not considered least-privilege until they are configured, applied, observed in use, and tested for both required access and denied excess access.

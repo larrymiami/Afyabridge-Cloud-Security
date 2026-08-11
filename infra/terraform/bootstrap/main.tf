@@ -7,14 +7,15 @@ locals {
     data_class  = "internal"
   }
 
-  labels = merge(local.mandatory_labels, var.labels)
+  labels = merge(var.labels, local.mandatory_labels)
 }
 
 resource "google_project_service" "required" {
   for_each = toset([
     "cloudkms.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
-    "storage.googleapis.com",
+    "iamcredentials.googleapis.com",
   ])
 
   project            = var.bootstrap_project_id
@@ -22,18 +23,44 @@ resource "google_project_service" "required" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "storage" {
+  project            = var.bootstrap_project_id
+  service            = "storage.googleapis.com"
+  disable_on_destroy = false
+}
+
+moved {
+  from = google_project_service.required["storage.googleapis.com"]
+  to   = google_project_service.storage
+}
+
+data "google_storage_project_service_account" "gcs" {
+  project = var.bootstrap_project_id
+
+  depends_on = [
+    google_project_service.storage,
+  ]
+}
+
 resource "google_kms_key_ring" "terraform_state" {
   name     = "afyabridge-terraform-state"
   location = var.region
   project  = var.bootstrap_project_id
 
-  depends_on = [google_project_service.required]
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  depends_on = [
+    google_project_service.required["cloudkms.googleapis.com"],
+  ]
 }
 
 resource "google_kms_crypto_key" "terraform_state" {
   name            = "terraform-state"
   key_ring        = google_kms_key_ring.terraform_state.id
   rotation_period = "7776000s"
+  deletion_policy = "PREVENT"
 
   lifecycle {
     prevent_destroy = true
@@ -46,7 +73,9 @@ resource "google_service_account" "terraform" {
   display_name = "AfyaBridge Terraform deployer"
   description  = "Non-human execution identity for reviewed AfyaBridge Terraform deployments."
 
-  depends_on = [google_project_service.required]
+  depends_on = [
+    google_project_service.required["iam.googleapis.com"],
+  ]
 }
 
 resource "google_storage_bucket" "terraform_state" {
@@ -63,20 +92,42 @@ resource "google_storage_bucket" "terraform_state" {
     enabled = true
   }
 
-  encryption {
-    default_kms_key_name = google_kms_crypto_key.terraform_state.id
+  soft_delete_policy {
+    retention_duration_seconds = 604800
   }
 
-  retention_policy {
-    retention_period = var.state_retention_days * 86400
-    is_locked        = false
+  lifecycle_rule {
+    action {
+      type = "Delete"
+    }
+
+    condition {
+      days_since_noncurrent_time = var.state_history_days
+      with_state                 = "ARCHIVED"
+      send_age_if_zero           = false
+    }
+  }
+
+  encryption {
+    default_kms_key_name = google_kms_crypto_key.terraform_state.id
   }
 
   lifecycle {
     prevent_destroy = true
   }
 
-  depends_on = [google_project_service.required]
+  depends_on = [
+    google_project_service.storage,
+    google_kms_crypto_key_iam_member.terraform_state_storage_service_agent,
+  ]
+}
+
+removed {
+  from = google_storage_bucket_iam_policy.terraform_state
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "google_storage_bucket_iam_member" "terraform_state_object_admin" {
@@ -85,8 +136,8 @@ resource "google_storage_bucket_iam_member" "terraform_state_object_admin" {
   member = "serviceAccount:${google_service_account.terraform.email}"
 }
 
-resource "google_kms_crypto_key_iam_member" "terraform_state_encrypter" {
+resource "google_kms_crypto_key_iam_member" "terraform_state_storage_service_agent" {
   crypto_key_id = google_kms_crypto_key.terraform_state.id
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
-  member        = "serviceAccount:${google_service_account.terraform.email}"
+  member        = data.google_storage_project_service_account.gcs.member
 }

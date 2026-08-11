@@ -35,19 +35,27 @@ variable "terraform_service_account_id" {
   }
 }
 
-variable "state_retention_days" {
-  description = "Minimum retention period for Terraform state objects."
+variable "state_history_days" {
+  description = "Minimum age before lifecycle deletion of noncurrent Terraform state versions."
   type        = number
   default     = 30
 
   validation {
-    condition     = var.state_retention_days >= 7
-    error_message = "state_retention_days must be at least 7 days."
+    condition     = var.state_history_days >= 7
+    error_message = "state_history_days must be at least 7 days."
   }
 }
 
 variable "labels" {
-  description = "Additional labels applied to bootstrap resources."
+  description = "Additional labels applied to bootstrap resources. Mandatory governance labels cannot be overridden."
   type        = map(string)
   default     = {}
+
+  validation {
+    condition = length(setintersection(
+      toset(keys(var.labels)),
+      toset(["application", "component", "environment", "managed_by", "data_class"])
+    )) == 0
+    error_message = "labels must not redefine mandatory governance labels: application, component, environment, managed_by, or data_class."
+  }
 }
