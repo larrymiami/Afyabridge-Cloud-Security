@@ -186,15 +186,16 @@ The v0.7H local bootstrap exercise intentionally uses one `terraform-deployer` i
 
 The bucket updater is resource-scoped but not field-scoped. `storage.buckets.update` can authorize multiple bucket metadata changes on the allowed bucket, so it should be treated as apply capability and can be made JIT/time-bounded when standing bucket mutation is unnecessary.
 
-The current bootstrap bucket policy is managed by `google_storage_bucket_iam_policy.terraform_state`, which is authoritative for bucket-level IAM. Before later plan/apply identities share the state bucket, choose and review one ownership model:
+The reviewer security gate rejected the authoritative `google_storage_bucket_iam_policy` resource. The branch now uses the additive `google_storage_bucket_iam_member.terraform_state_object_admin` resource instead and includes a `removed { destroy = false }` handoff for the old policy state. This prevents a later bootstrap apply from claiming ownership of the entire bucket IAM policy merely to retain the Terraform backend principal.
 
-- centrally manage all required state principals in that authoritative bootstrap policy; or
-- migrate to non-authoritative IAM member resources before later identities are granted access.
+The additive-IAM migration still requires one reviewed live state handoff before the current branch can be called drift-free at its latest head. That migration must use the exact bucket IAM write permission required by the provider and must be followed by a zero-change plan.
 
 The service-account-scoped human Token Creator path used for v0.7H remains a lab bridge until GitHub Workload Identity Federation is live. It is not the final production-style operator path and should be removed or converted to JIT/break-glass access when federation replaces local execution.
 
 ## Current implementation boundary
 
-The bootstrap execution identity now has a measured and live-validated steady-state permission set. This does not establish a universal role set for the foundation, network, workload, observability, edge, or GitHub-federated deployment identities.
+The bootstrap execution identity now has a measured and live-validated steady-state permission set. The additive bucket-IAM ownership change is reviewer-hardened in code but still requires its final live state handoff and no-drift proof.
+
+This does not establish a universal role set for the foundation, network, workload, observability, edge, or GitHub-federated deployment identities.
 
 Those later identities must continue to follow the same rule: exact roles and permissions are not considered least-privilege until they are configured, applied, observed in use, and tested for both required access and denied excess access.
