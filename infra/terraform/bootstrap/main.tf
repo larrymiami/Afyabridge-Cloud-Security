@@ -16,6 +16,7 @@ resource "google_project_service" "required" {
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
+    "sts.googleapis.com",
   ])
 
   project            = var.bootstrap_project_id
