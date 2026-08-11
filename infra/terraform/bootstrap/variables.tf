@@ -54,7 +54,7 @@ variable "labels" {
   validation {
     condition = length(setintersection(
       toset(keys(var.labels)),
-      toset(["application", "component", "environment", "managed_by", "data_class"]),
+      toset(["application", "component", "environment", "managed_by", "data_class"])
     )) == 0
     error_message = "labels must not redefine mandatory governance labels: application, component, environment, managed_by, or data_class."
   }
