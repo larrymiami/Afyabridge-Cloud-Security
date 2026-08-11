@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This diagram shows how the minimal bootstrap process establishes the remote Terraform backend, GitHub Workload Identity Federation, deployment identities, and the project-factory execution path.
+This diagram shows how the minimal bootstrap process establishes the remote Terraform backend, deployment identities, the intended GitHub Workload Identity Federation path, and the later project-factory execution path.
 
 ## Bootstrap flow
 
@@ -87,6 +87,22 @@ flowchart LR
     Managed -->|Audit and findings| LS
 ```
 
+## Live bootstrap validation path
+
+The first live validation exercised the Google Cloud bootstrap boundary before enabling the full GitHub federation path:
+
+```mermaid
+flowchart LR
+    H[Authorized human ADC] -->|Service Account Token Creator on terraform-deployer only| SA[terraform-deployer]
+    SA -->|Short-lived impersonated credentials| TF[Terraform Google provider]
+    TF -->|Read contract| R[Bootstrap resources]
+    TF -->|storage.buckets.update only| B[Protected state bucket]
+    S[Remote Terraform state] --> TF
+    K[KMS-protected backend] --> S
+```
+
+This validation proved the service-account impersonation and steady-state Google Cloud IAM model without using a downloaded service-account key. It did **not** validate GitHub OIDC token exchange or protected-environment enforcement.
+
 ## Execution stages
 
 ### Stage 0 — Minimal bootstrap
@@ -97,10 +113,12 @@ A temporary authorized operator creates only the resources required to move subs
 - state bucket;
 - encryption and access controls;
 - required APIs;
-- Workload Identity Federation;
+- Workload Identity Federation configuration;
 - deployment identities.
 
 Stage 0 does not create workload projects or application infrastructure.
+
+The v0.7H live exercise validated the currently implemented bootstrap Terraform resources, remote state, KMS protection, service-account impersonation, and least-privilege execution-role model. Federation remains a separately pending live-validation step.
 
 ### Stage 1 — Foundation deployment
 
@@ -123,16 +141,19 @@ Later phases deploy application, data, networking, and security controls into ap
 
 ## Security controls
 
-The flow enforces:
+The flow enforces or is designed to enforce:
 
 - no long-lived Google Cloud credential in GitHub;
-- no local production Terraform state;
+- no service-account JSON key for the validated bootstrap execution path;
+- no local production Terraform state after backend migration;
 - review before apply;
 - separate state and identities by scope;
 - remote state encryption and versioning;
 - auditable changes;
 - controlled project creation;
-- centralized logging of administrative actions.
+- centralized logging of administrative actions;
+- a measured steady-state bootstrap read contract; and
+- a bucket-scoped metadata update permission separated from the read contract.
 
 ## Failure handling
 
@@ -153,7 +174,8 @@ The flow enforces:
 - [`../landing-zone/organization-policies.md`](../landing-zone/organization-policies.md)
 - [`../landing-zone/logging-and-asset-inventory.md`](../landing-zone/logging-and-asset-inventory.md)
 - [`../../adr/ADR-003-terraform-state-and-bootstrap.md`](../../adr/ADR-003-terraform-state-and-bootstrap.md)
+- [`../../evidence/v0.7h-bootstrap-live-validation.md`](../../evidence/v0.7h-bootstrap-live-validation.md)
 
 ## Implementation status
 
-**Designed** — the bootstrap workflow and trust boundaries are documented. The flow remains unimplemented until Terraform and GitHub Actions configuration are added and validated.
+**Partially live-validated** — the protected Terraform bootstrap control plane and scoped service-account impersonation path have been exercised in a dedicated Google Cloud lab project. GitHub Workload Identity Federation and the Stage 1–3 deployment path remain pending live validation.
