@@ -57,6 +57,18 @@ variable "github_repository_owner_id" {
   }
 }
 
+variable "plan_workflow_path" {
+  description = "Repository-relative GitHub Actions workflow path trusted by the plan provider."
+  type        = string
+  default     = ".github/workflows/terraform-federation-plan.yml"
+}
+
+variable "apply_workflow_path" {
+  description = "Repository-relative GitHub Actions workflow path trusted by the apply provider."
+  type        = string
+  default     = ".github/workflows/terraform-federation-apply.yml"
+}
+
 variable "plan_base_ref" {
   description = "Pull-request base branch ref accepted by the plan provider."
   type        = string
