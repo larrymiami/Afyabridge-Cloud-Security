@@ -106,7 +106,10 @@ jobs:
         run: |
           set -euo pipefail
           root="infra/terraform/environments/federation"
-          sha256sum "$root/federation.tfplan" > "$root/federation.tfplan.sha256"
+          (
+            cd "$root"
+            sha256sum federation.tfplan > federation.tfplan.sha256
+          )
           terraform -chdir="$root" show -json federation.tfplan \
             | jq '{
                 create: ([.resource_changes[]? | select(.change.actions == ["create"])] | length),
