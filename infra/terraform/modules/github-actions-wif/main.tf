@@ -131,7 +131,7 @@ resource "google_service_account" "apply" {
   project      = var.project_id
   account_id   = var.apply_service_account_id
   display_name = "Terraform apply"
-  description  = "Write-capable identity impersonated only by protected main-branch GitHub apply jobs."
+  description  = "Protected write-capable identity impersonated only by approved main-branch GitHub apply jobs."
 
   lifecycle {
     prevent_destroy = true
