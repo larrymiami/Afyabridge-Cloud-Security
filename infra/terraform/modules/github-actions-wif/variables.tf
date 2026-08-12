@@ -70,9 +70,9 @@ variable "apply_workflow_path" {
 }
 
 variable "plan_base_ref" {
-  description = "Pull-request base branch ref accepted by the plan provider."
+  description = "Pull-request base branch name accepted by the plan provider."
   type        = string
-  default     = "refs/heads/main"
+  default     = "main"
 }
 
 variable "apply_ref" {

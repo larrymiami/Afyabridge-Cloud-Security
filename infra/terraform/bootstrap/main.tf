@@ -142,3 +142,9 @@ resource "google_kms_crypto_key_iam_member" "terraform_state_storage_service_age
   role          = "roles/cloudkms.cryptoKeyEncrypterDecrypter"
   member        = data.google_storage_project_service_account.gcs.member
 }
+
+resource "google_storage_bucket_iam_member" "terraform_plan_state_reader" {
+  bucket = google_storage_bucket.terraform_state.name
+  role   = "projects/${var.bootstrap_project_id}/roles/afyabridgeTerraformPlanStateReader"
+  member = "serviceAccount:terraform-plan@${var.bootstrap_project_id}.iam.gserviceaccount.com"
+}
