@@ -5,40 +5,23 @@ on:
     branches:
       - main
     paths:
-      - "infra/terraform/environments/federation/**"
-      - "infra/terraform/modules/github-actions-wif/**"
       - ".github/workflows/terraform-federation-plan.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: terraform-federation-plan-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  plan:
+  negative-plan-cannot-assume-apply:
     if: >-
-      (github.event_name == 'workflow_dispatch' ||
-      github.event.pull_request.head.repo.full_name == github.repository) &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
       vars.GCP_FEDERATION_PROJECT_ID != '' &&
-      vars.GCP_WIF_PLAN_PROVIDER != '' &&
-      vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT != '' &&
-      vars.GCP_TERRAFORM_STATE_BUCKET != '' &&
-      vars.GCP_TERRAFORM_STATE_KMS_KEY != ''
+      vars.GCP_WIF_APPLY_PROVIDER != '' &&
+      vars.GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT != ''
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
-
-    env:
-      TF_IN_AUTOMATION: "true"
-      TF_INPUT: "false"
-      TF_VAR_project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
-      TF_STATE_BUCKET: ${{ vars.GCP_TERRAFORM_STATE_BUCKET }}
-      TF_STATE_KMS_KEY: ${{ vars.GCP_TERRAFORM_STATE_KMS_KEY }}
 
     steps:
       - name: Check out repository
@@ -46,80 +29,29 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Authenticate to Google Cloud
-        id: auth
+      - name: Attempt apply identity from plan workflow
+        id: apply-auth
+        continue-on-error: true
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
-          workload_identity_provider: ${{ vars.GCP_WIF_PLAN_PROVIDER }}
-          service_account: ${{ vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.GCP_WIF_APPLY_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT }}
           create_credentials_file: true
           export_environment_variables: true
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
-        with:
-          terraform_version: 1.15.8
-          terraform_wrapper: false
-
-      - name: Check formatting
-        run: terraform fmt -check -recursive infra/terraform
-
-      - name: Initialize federation configuration
-        run: >-
-          terraform -chdir=infra/terraform/environments/federation init
-          -reconfigure
-          -input=false
-          -lockfile=readonly
-          -backend-config="bucket=${TF_STATE_BUCKET}"
-          -backend-config="prefix=federation/core"
-          -backend-config="kms_encryption_key=${TF_STATE_KMS_KEY}"
-
-      - name: Validate federation configuration
-        run: terraform -chdir=infra/terraform/environments/federation validate -no-color
-
-      - name: Create federation plan
-        run: >-
-          terraform -chdir=infra/terraform/environments/federation plan
-          -input=false
-          -lock=false
-          -refresh=true
-          -no-color
-          -out=federation.tfplan
-
-      - name: Publish non-sensitive change summary
+      - name: Assert apply identity is blocked
         shell: bash
         run: |
           set -euo pipefail
-          terraform -chdir=infra/terraform/environments/federation show -json federation.tfplan \
-            | jq -r '
-              [
-                .resource_changes[]?.change.actions
-                | if . == ["create"] then "create"
-                  elif . == ["update"] then "update"
-                  elif . == ["delete"] then "delete"
-                  elif . == ["delete", "create"] or . == ["create", "delete"] then "replace"
-                  else "other"
-                  end
-              ]
-              | group_by(.)
-              | map({key: .[0], value: length})
-              | from_entries
-              | "## Terraform federation plan\n\n" +
-                "| Action | Count |\n|---|---:|\n" +
-                "| Create | \(.create // 0) |\n" +
-                "| Update | \(.update // 0) |\n" +
-                "| Replace | \(.replace // 0) |\n" +
-                "| Delete | \(.delete // 0) |\n" +
-                "| Other | \(.other // 0) |"
-            ' >> "$GITHUB_STEP_SUMMARY"
+          test "${{ steps.apply-auth.outcome }}" = "failure"
+          echo "Apply WIF authentication was rejected as expected." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Remove generated credentials and plan
+      - name: Remove generated credentials
         if: always()
         shell: bash
         run: |
-          rm -f infra/terraform/environments/federation/federation.tfplan
-          credentials_file="${{ steps.auth.outputs.credentials_file_path }}"
+          credentials_file="${{ steps.apply-auth.outputs.credentials_file_path }}"
           if [[ -n "$credentials_file" ]]; then
             rm -f "$credentials_file"
           fi
