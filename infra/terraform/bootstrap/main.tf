@@ -148,3 +148,9 @@ resource "google_storage_bucket_iam_member" "terraform_plan_state_reader" {
   role   = "projects/${var.bootstrap_project_id}/roles/afyabridgeTerraformPlanStateReader"
   member = "serviceAccount:terraform-plan@${var.bootstrap_project_id}.iam.gserviceaccount.com"
 }
+
+resource "google_storage_bucket_iam_member" "terraform_apply_state_access" {
+  bucket = google_storage_bucket.terraform_state.name
+  role   = "projects/${var.bootstrap_project_id}/roles/afyabridgeTerraformApplyStateAccess"
+  member = "serviceAccount:terraform-apply@${var.bootstrap_project_id}.iam.gserviceaccount.com"
+}
