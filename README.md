@@ -57,7 +57,68 @@ The target platform includes:
 - GitHub Actions using Workload Identity Federation;
 - signed artifacts, SBOMs, and build attestations.
 
-The repository already contains an implemented application-security baseline, Terraform infrastructure for the Google Cloud foundation and country workloads, shift-left security gates, and software supply-chain controls. Infrastructure has been statically validated in CI, and the protected Terraform bootstrap control plane has now been applied and live-validated in a dedicated Google Cloud project using short-lived service-account impersonation and least-privilege custom IAM roles. The remaining foundation, network, workload, observability, edge, GitHub Workload Identity Federation, protected-environment, and runtime controls remain explicit live-validation work rather than assumed outcomes.
+The repository already contains an implemented application-security baseline, Terraform infrastructure for the Google Cloud foundation and country workloads, shift-left security gates, software supply-chain controls, cloud-posture governance, and a keyless GitHub Actions to Google Cloud deployment-control plane.
+
+Infrastructure is statically validated in CI. The protected Terraform bootstrap control plane and the GitHub Workload Identity Federation deployment path have also been live-validated in a dedicated Google Cloud project. That live validation includes separate plan/apply service accounts, protected remote state, production-environment approval, immutable saved-plan provenance, least-privilege permission discovery, a controlled Google provider mutation, and negative trust-boundary tests. The remaining foundation, network, workload, observability, edge, live-posture, and runtime controls remain explicit live-validation work rather than assumed outcomes.
+
+## Current validation state
+
+| Area | Current state | What is actually proven |
+|---|---|---|
+| Threat model and cloud architecture | Designed | Reviewed scenario, trust boundaries, country isolation, IAM, network, data, and control architecture |
+| Application security baseline | Validated | Authentication seam, deny-by-default authorization, scoped persistence, audit, offline sync, replay/idempotency controls, and automated tests |
+| Terraform infrastructure | Implemented + static validation | Repository Terraform roots initialize and validate with committed provider lockfiles |
+| Terraform bootstrap | Live validated | CMEK-backed remote state, impersonation, measured steady-state IAM, controlled mutation, and temporary-privilege cleanup |
+| GitHub → GCP federation | Live validated | OIDC/WIF token exchange, separate plan/apply identities, protected production approval, saved-plan integrity/provenance, state locking, real provider mutation, and negative trust tests |
+| Shift-left security pipeline | Validated in CI | Secret, dependency, license, CodeQL, IaC, package, container, API-contract, policy, exception, and fail-closed verdict controls |
+| Software supply chain | Validated in CI | SBOMs, protected-main signing identity, keyless Cosign signing, attestations, provenance verification, and revocation checks |
+| Cloud posture and governance | Repository-stage validation | Desired-state posture, drift decision logic, finding lifecycle, evidence reporting, and fail-closed governance; live cloud posture remains pending |
+| Foundation / network / workloads / observability / edge | Pending live validation | Implemented and statically validated, but not yet claimed as live-enforced |
+
+See [ROADMAP.md](./ROADMAP.md) for the detailed phase state and [docs/evidence/README.md](./docs/evidence/README.md) for the validation-evidence index.
+
+## Keyless Terraform deployment path
+
+The live-validated deployment-control path is intentionally split by responsibility:
+
+```text
+GitHub pull request / reviewed main commit
+              |
+              v
+      Terraform plan workflow
+              |
+        GitHub OIDC token
+              v
+        plan WIF provider
+              |
+              v
+     terraform-plan service account
+              |
+              +--> protected remote-state read
+              |
+              `--> reviewed saved plan + checksum + provenance
+                           |
+                           v
+                  production approval
+                           |
+                           v
+                   Terraform apply job
+                           |
+                     GitHub OIDC token
+                           v
+                    apply WIF provider
+                           |
+                           v
+                  terraform-apply service account
+                           |
+                           +--> protected state locking/persistence
+                           |
+                           `--> exact saved-plan application
+```
+
+No downloaded Google Cloud service-account JSON key is used by this path.
+
+The plan identity is not given apply-state mutation permissions. The apply identity is not given project IAM policy mutation capability merely to manage its own grants. Provider permissions used during live validation were measured from denied operations and installed through separately owned Stage-0 administrative handoff controls.
 
 ## Current security pipeline
 
@@ -73,9 +134,12 @@ The repository CI currently demonstrates:
 - keyless Sigstore/Cosign signing and GitHub artifact attestations on trusted pushes to `main`;
 - provenance verification constrained to the expected repository, workflow, source ref, and source commit;
 - explicit artifact/source/workflow revocation policy;
-- negative compromise tests that prove reviewed trust boundaries fail closed when weakened.
+- separate keyless Terraform plan and apply identities using GitHub OIDC and Google Workload Identity Federation;
+- a protected `production` environment before apply authentication;
+- immutable saved-plan checksum and provenance verification before apply;
+- negative compromise tests that prove reviewed repository, signing, and deployment trust boundaries fail closed when weakened.
 
-Pull requests intentionally exercise the unprivileged build and security-validation path only. The privileged signing/provenance job is restricted to pushes to `refs/heads/main`, so reviewed repository governance for `main` is part of the signing trust boundary.
+Pull requests intentionally exercise the unprivileged build and security-validation path only. Privileged signing is restricted to trusted pushes to `refs/heads/main`, while infrastructure apply is separately restricted by the reviewed main-branch workflow, the production environment, Workload Identity Federation conditions, and the dedicated apply identity.
 
 ## Delivery phases
 
@@ -95,15 +159,28 @@ Pull requests intentionally exercise the unprivileged build and security-validat
 
 See [ROADMAP.md](./ROADMAP.md) for the detailed implementation plan and the distinction between designed, implemented, and live-validated controls.
 
+## Validation evidence
+
+Evidence is intentionally separated from architecture claims. Static validation, live cloud behavior, controlled mutations, and negative trust tests are recorded independently so that the repository does not present a designed control as a proven one.
+
+Start with the [validation-evidence index](./docs/evidence/README.md). The current live-deployment-control sequence is:
+
+- [v0.7H — Terraform bootstrap live validation](./docs/evidence/v0.7h-bootstrap-live-validation.md)
+- [v0.7I — GitHub WIF plan identity live validation](./docs/evidence/v0.7i-github-wif-live-validation.md)
+- [v0.7J — protected apply and state-access validation](./docs/evidence/v0.7j-github-wif-apply-validation.md)
+- [v0.7K — controlled Google provider mutation](./docs/evidence/v0.7k-github-wif-provider-mutation-validation.md)
+- [v0.7L — negative WIF and environment trust validation](./docs/evidence/v0.7l-github-wif-negative-trust-validation.md)
+
 ## Repository status
 
-The project is in active implementation and validation. The application-security baseline is implemented and validated; the Google Cloud infrastructure is implemented and statically validated, with the Terraform bootstrap control plane additionally live-validated and later stacks still pending live deployment; the shift-left CI/CD and software supply-chain controls are implemented and validated in repository CI.
+The project is in active implementation and live validation. The application-security baseline, shift-left CI/CD controls, and software-supply-chain controls are validated in repository CI. The Google Cloud infrastructure is implemented and statically validated. The Terraform bootstrap and GitHub-to-GCP federation/deployment-control plane are additionally live-validated; the broader foundation, network, workload, observability, edge, live posture, and runtime stages remain pending their own deployment and effectiveness evidence.
 
 ## Data and safety
 
 - Only synthetic data is used.
 - No real patient or employee records are included.
 - No production credentials are stored in the repository.
+- No service-account JSON key is required for the validated GitHub-to-GCP deployment path.
 - Intentionally vulnerable components will only run in isolated lab environments.
 - Cloud resources include or will include documented cleanup procedures and cost controls before each live deployment stage.
 
