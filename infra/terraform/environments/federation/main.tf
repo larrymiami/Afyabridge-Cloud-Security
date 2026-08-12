@@ -5,8 +5,6 @@ module "github_actions_federation" {
   github_repository          = "larrymiami/Afyabridge-Cloud-Security"
   github_repository_id       = "1310793524"
   github_repository_owner_id = "97871935"
-  plan_workflow_path         = ".github/workflows/terraform-federation-plan.yml"
-  apply_workflow_path        = ".github/workflows/terraform-federation-apply.yml"
   plan_base_ref              = "refs/heads/main"
   apply_ref                  = "refs/heads/main"
   apply_environment          = var.apply_environment
