@@ -11,6 +11,11 @@ on:
         description: "Type APPLY to create and execute the saved Terraform plan"
         required: true
         type: string
+      negative_test_missing_environment:
+        description: "Security regression test: attempt apply WIF without the production environment"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -23,6 +28,7 @@ jobs:
   plan:
     if: >-
       github.ref == 'refs/heads/main' &&
+      github.event.inputs.negative_test_missing_environment != 'true' &&
       github.event.inputs.confirm_apply == 'APPLY' &&
       github.event.inputs.expected_commit == github.sha &&
       vars.GCP_FEDERATION_PROJECT_ID != '' &&
@@ -165,6 +171,65 @@ jobs:
         run: |
           rm -f infra/terraform/environments/federation/federation.tfplan
           rm -f "${{ steps.plan-auth.outputs.credentials_file_path }}"
+
+  negative-apply-missing-production-environment:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event.inputs.negative_test_missing_environment == 'true' &&
+      github.event.inputs.confirm_apply == 'APPLY' &&
+      github.event.inputs.expected_commit == github.sha &&
+      vars.GCP_FEDERATION_PROJECT_ID != '' &&
+      vars.GCP_WIF_APPLY_PROVIDER != '' &&
+      vars.GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out exact validation commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify isolated negative-test provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          test "${{ github.event.inputs.expected_commit }}" = "${GITHUB_SHA}"
+          test "${{ github.event.inputs.negative_test_missing_environment }}" = "true"
+
+      - name: Attempt apply identity without production environment
+        id: apply-auth
+        continue-on-error: true
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WIF_APPLY_PROVIDER }}
+          service_account: ${{ vars.GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Assert missing production environment is blocked
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.apply-auth.outcome }}" = "failure"
+          test "${GITHUB_REF}" = "refs/heads/main"
+          echo "Apply WIF authentication from main without the production environment was rejected as expected." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove generated credentials
+        if: always()
+        shell: bash
+        run: |
+          credentials_file="${{ steps.apply-auth.outputs.credentials_file_path }}"
+          if [[ -n "$credentials_file" ]]; then
+            rm -f "$credentials_file"
+          fi
 
   apply:
     needs: plan
