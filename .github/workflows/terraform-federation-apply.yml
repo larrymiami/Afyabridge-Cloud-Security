@@ -2,217 +2,27 @@ name: Terraform federation apply
 
 on:
   workflow_dispatch:
-    inputs:
-      expected_commit:
-        description: "Full main-branch commit SHA to deploy"
-        required: true
-        type: string
-      confirm_apply:
-        description: "Type APPLY to create and execute the saved Terraform plan"
-        required: true
-        type: string
 
 permissions:
   contents: read
 
-concurrency:
-  group: terraform-federation-production
-  cancel-in-progress: false
-
 jobs:
-  plan:
-    if: >-
-      github.ref == 'refs/heads/main' &&
-      github.event.inputs.confirm_apply == 'APPLY' &&
-      github.event.inputs.expected_commit == github.sha &&
-      vars.GCP_FEDERATION_PROJECT_ID != '' &&
-      vars.GCP_WIF_PLAN_PROVIDER != '' &&
-      vars.GCP_WIF_APPLY_PROVIDER != '' &&
-      vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT != '' &&
-      vars.GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT != '' &&
-      vars.GCP_TERRAFORM_STATE_BUCKET != '' &&
-      vars.GCP_TERRAFORM_STATE_KMS_KEY != ''
+  negative-apply-missing-production-environment:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 10
     permissions:
       contents: read
       id-token: write
 
-    env:
-      TF_IN_AUTOMATION: "true"
-      TF_INPUT: "false"
-      TF_VAR_project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
-      TF_STATE_BUCKET: ${{ vars.GCP_TERRAFORM_STATE_BUCKET }}
-      TF_STATE_KMS_KEY: ${{ vars.GCP_TERRAFORM_STATE_KMS_KEY }}
-
     steps:
-      - name: Check out exact deployment commit
+      - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
           persist-credentials: false
 
-      - name: Verify deployment provenance
-        shell: bash
-        run: |
-          set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          test "${GITHUB_REF}" = "refs/heads/main"
-          test "${{ github.event.inputs.expected_commit }}" = "${GITHUB_SHA}"
-
-      - name: Authenticate plan identity
-        id: plan-auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
-        with:
-          project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
-          workload_identity_provider: ${{ vars.GCP_WIF_PLAN_PROVIDER }}
-          service_account: ${{ vars.GCP_TERRAFORM_PLAN_SERVICE_ACCOUNT }}
-          create_credentials_file: true
-          export_environment_variables: true
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
-        with:
-          terraform_version: 1.15.8
-          terraform_wrapper: false
-
-      - name: Check formatting
-        run: terraform fmt -check -recursive infra/terraform
-
-      - name: Initialize federation configuration
-        run: >-
-          terraform -chdir=infra/terraform/environments/federation init
-          -reconfigure
-          -input=false
-          -lockfile=readonly
-          -backend-config="bucket=${TF_STATE_BUCKET}"
-          -backend-config="prefix=federation/core"
-          -backend-config="kms_encryption_key=${TF_STATE_KMS_KEY}"
-
-      - name: Validate federation configuration
-        run: terraform -chdir=infra/terraform/environments/federation validate -no-color
-
-      - name: Create saved federation plan
-        run: >-
-          terraform -chdir=infra/terraform/environments/federation plan
-          -input=false
-          -lock=false
-          -refresh=true
-          -no-color
-          -out=federation.tfplan
-
-      - name: Record plan checksum and metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          root="infra/terraform/environments/federation"
-          (
-            cd "$root"
-            sha256sum federation.tfplan > federation.tfplan.sha256
-          )
-          terraform -chdir="$root" show -json federation.tfplan \
-            | jq '{
-                create: ([.resource_changes[]? | select(.change.actions == ["create"])] | length),
-                update: ([.resource_changes[]? | select(.change.actions == ["update"])] | length),
-                delete: ([.resource_changes[]? | select(.change.actions == ["delete"])] | length),
-                replace: ([.resource_changes[]? | select(.change.actions == ["delete", "create"] or .change.actions == ["create", "delete"])] | length)
-              }' > "$root/federation-plan-counts.json"
-          jq -n \
-            --arg repository "${GITHUB_REPOSITORY}" \
-            --arg commit "${GITHUB_SHA}" \
-            --arg ref "${GITHUB_REF}" \
-            --arg run_id "${GITHUB_RUN_ID}" \
-            --arg project_id "${TF_VAR_project_id}" \
-            --arg state_bucket "${TF_STATE_BUCKET}" \
-            --arg state_kms_key "${TF_STATE_KMS_KEY}" \
-            '{
-              repository: $repository,
-              commit: $commit,
-              ref: $ref,
-              run_id: $run_id,
-              project_id: $project_id,
-              state_bucket: $state_bucket,
-              state_kms_key: $state_kms_key
-            }' \
-            > "$root/federation-plan-metadata.json"
-          {
-            echo "## Federation apply candidate"
-            echo
-            echo "Commit: \`${GITHUB_SHA}\`"
-            echo
-            echo '```json'
-            cat "$root/federation-plan-counts.json"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload immutable saved plan
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: federation-plan-${{ github.sha }}-${{ github.run_id }}
-          path: |
-            infra/terraform/environments/federation/federation.tfplan
-            infra/terraform/environments/federation/federation.tfplan.sha256
-            infra/terraform/environments/federation/federation-plan-counts.json
-            infra/terraform/environments/federation/federation-plan-metadata.json
-            infra/terraform/environments/federation/.terraform.lock.hcl
-          if-no-files-found: error
-          retention-days: 1
-          overwrite: false
-
-      - name: Remove plan credentials and local plan
-        if: always()
-        shell: bash
-        run: |
-          rm -f infra/terraform/environments/federation/federation.tfplan
-          rm -f "${{ steps.plan-auth.outputs.credentials_file_path }}"
-
-  apply:
-    needs: plan
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    environment: production
-    permissions:
-      contents: read
-      id-token: write
-
-    env:
-      TF_IN_AUTOMATION: "true"
-      TF_INPUT: "false"
-      TF_VAR_project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
-      TF_STATE_BUCKET: ${{ vars.GCP_TERRAFORM_STATE_BUCKET }}
-      TF_STATE_KMS_KEY: ${{ vars.GCP_TERRAFORM_STATE_KMS_KEY }}
-
-    steps:
-      - name: Check out exact deployment commit
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-
-      - name: Download saved plan
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: federation-plan-${{ github.sha }}-${{ github.run_id }}
-          path: infra/terraform/environments/federation
-
-      - name: Verify plan checksum and provenance
-        shell: bash
-        run: |
-          set -euo pipefail
-          root="infra/terraform/environments/federation"
-          cd "$root"
-          sha256sum --check federation.tfplan.sha256
-          test "$(jq -r '.repository' federation-plan-metadata.json)" = "${GITHUB_REPOSITORY}"
-          test "$(jq -r '.commit' federation-plan-metadata.json)" = "${GITHUB_SHA}"
-          test "$(jq -r '.ref' federation-plan-metadata.json)" = "refs/heads/main"
-          test "$(jq -r '.run_id' federation-plan-metadata.json)" = "${GITHUB_RUN_ID}"
-          test "$(jq -r '.project_id' federation-plan-metadata.json)" = "${TF_VAR_project_id}"
-          test "$(jq -r '.state_bucket' federation-plan-metadata.json)" = "${TF_STATE_BUCKET}"
-          test "$(jq -r '.state_kms_key' federation-plan-metadata.json)" = "${TF_STATE_KMS_KEY}"
-          test "$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)" = "${GITHUB_SHA}"
-
-      - name: Authenticate apply identity
+      - name: Attempt apply identity without production environment
         id: apply-auth
+        continue-on-error: true
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
         with:
           project_id: ${{ vars.GCP_FEDERATION_PROJECT_ID }}
@@ -221,47 +31,18 @@ jobs:
           create_credentials_file: true
           export_environment_variables: true
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
-        with:
-          terraform_version: 1.15.8
-          terraform_wrapper: false
-
-      - name: Initialize protected federation backend
-        run: >-
-          terraform -chdir=infra/terraform/environments/federation init
-          -reconfigure
-          -input=false
-          -lockfile=readonly
-          -backend-config="bucket=${TF_STATE_BUCKET}"
-          -backend-config="prefix=federation/core"
-          -backend-config="kms_encryption_key=${TF_STATE_KMS_KEY}"
-
-      - name: Apply exact saved plan
-        run: terraform -chdir=infra/terraform/environments/federation apply -input=false -no-color federation.tfplan
-
-      - name: Record apply evidence
+      - name: Assert missing production environment is blocked
         shell: bash
         run: |
-          {
-            echo "## Federation apply completed"
-            echo
-            echo "Commit: \`${GITHUB_SHA}\`"
-            echo
-            echo "Run ID: \`${GITHUB_RUN_ID}\`"
-            echo
-            echo "Applied plan checksum:"
-            echo '```text'
-            cat infra/terraform/environments/federation/federation.tfplan.sha256
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          test "${{ steps.apply-auth.outcome }}" = "failure"
+          echo "Apply WIF authentication without the protected production environment was rejected as expected." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Remove apply credentials and saved plan
+      - name: Remove generated credentials
         if: always()
         shell: bash
         run: |
-          rm -f infra/terraform/environments/federation/federation.tfplan
-          rm -f infra/terraform/environments/federation/federation.tfplan.sha256
-          rm -f infra/terraform/environments/federation/federation-plan-counts.json
-          rm -f infra/terraform/environments/federation/federation-plan-metadata.json
-          rm -f "${{ steps.apply-auth.outputs.credentials_file_path }}"
+          credentials_file="${{ steps.apply-auth.outputs.credentials_file_path }}"
+          if [[ -n "$credentials_file" ]]; then
+            rm -f "$credentials_file"
+          fi
