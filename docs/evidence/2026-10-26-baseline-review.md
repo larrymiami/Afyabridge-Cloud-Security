@@ -73,3 +73,21 @@ There are 14 open dependency PRs at review time. Results below are the latest av
 2. Remediate current package/container findings in a separate dependency change; keep severity gates, signing separation, and provider lockfile enforcement intact.
 3. Obtain successful current Application baseline (including PostgreSQL tests), Terraform foundation, Security gate verdict, and PR-safe supply-chain checks.
 4. Then begin foundation deployment readiness: GCP access/state inspection, organization prerequisites, reviewed scope, costs, and cleanup plan. No cloud apply is part of this review.
+
+## Fresh PR #83 CI result
+
+Validated implementation revision: `325ef67fbe6b78e7bc665eceb570aa78ca43100e`, branch `chore/baseline-reconciliation`. These are fresh 2026-10-26 PR-context runs, distinct from the August main-branch evidence above.
+
+| Workflow | Result | Evidence |
+|---|---|---|
+| Application baseline | PASS | [40281047075](https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/40281047075): PostgreSQL initialization, migrations, seed, lint, typecheck, full tests, and production build |
+| Terraform foundation | PASS | [40281047024](https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/40281047024): all seven roots validated with backend disabled and committed provider locks read-only |
+| Supply chain | PASS | [40281047008](https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/40281047008): PR-safe build and validation path; privileged signing skipped as intended |
+| Terraform federation plan | PASS | [40281047049](https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/40281047049): read-only plan path, no apply |
+| Security gates | FAIL | [40281047053](https://github.com/larrymiami/Afyabridge-Cloud-Security/actions/runs/40281047053): package and container scans fail; required verdict blocks |
+
+Security governance, API contract, OPA, IaC scanning, CodeQL, secret scanning, and dependency/license review passed in the fresh security run. The local provider/PostgreSQL verification limitations are resolved by these CI results for the tested revision; they remain limitations of this local execution environment.
+
+The fresh Trivy package scan reports 12 HIGH/CRITICAL findings (7 high, 5 critical). The image scan reports two HIGH Alpine findings plus nine application-package findings (4 high, 5 critical). The counts differ from the registry audit because the tools and scan scopes differ; neither count is a count of proven exploitable application paths. The package/image failures remain deployment blockers. No exceptions or severity-gate reductions were introduced.
+
+**Baseline review outcome:** milestone reconciliation, check-coverage corrections, fresh validation, and dependency triage are complete. The baseline is not security-green. Next work is reviewed dependency and image remediation, then successful security verdict before foundation deployment readiness.
