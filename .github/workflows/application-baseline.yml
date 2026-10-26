@@ -84,6 +84,9 @@ jobs:
       - name: Seed synthetic data
         run: pnpm db:seed
 
+      - name: Run workspace lint checks
+        run: pnpm lint
+
       - name: Type check
         run: pnpm typecheck
 

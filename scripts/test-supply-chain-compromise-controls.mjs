@@ -88,6 +88,27 @@ try {
 
 const mutations = [
   {
+    label: "federation plan job cannot mutate provider selections",
+    validator: validateGovernanceFixture,
+    path: ".github/workflows/terraform-federation-plan.yml",
+    transform: (text) => text.replace(" -lockfile=readonly", ""),
+  },
+  {
+    label: "federation apply planning job cannot mutate provider selections",
+    validator: validateGovernanceFixture,
+    path: ".github/workflows/terraform-federation-apply.yml",
+    transform: (text) => text.replace(" -lockfile=readonly", ""),
+  },
+  {
+    label: "federation apply execution job cannot mutate provider selections",
+    validator: validateGovernanceFixture,
+    path: ".github/workflows/terraform-federation-apply.yml",
+    transform: (text) => {
+      const index = text.lastIndexOf(" -lockfile=readonly");
+      return `${text.slice(0, index)}${text.slice(index).replace(" -lockfile=readonly", "")}`;
+    },
+  },
+  {
     label: "unprivileged build job gains OIDC permission",
     validator: validateIdentityFixture,
     path: ".github/workflows/supply-chain.yml",
