@@ -51,7 +51,7 @@ Before activating `terraform-foundation-plan.yml`, separately review and provisi
 - `workflow_dispatch`, branch ref `refs/heads/main`, and branch ref type;
 - environment claim `foundation-plan`.
 
-Grant `roles/iam.workloadIdentityUser` only for that dedicated trust on the dedicated service account. Keep apply-identity impersonation unavailable. The new provider and service account are **not provisioned by this PR**; permission inventory must precede their reviewed bootstrap change.
+Grant `roles/iam.workloadIdentityUser` only for that dedicated trust on the dedicated service account. Keep apply-identity impersonation unavailable. The new provider and service account are **not live-provisioned**. Their opt-in desired configuration and the operator observations are described in [dedicated foundation plan identity bootstrap](foundation-plan-identity.md); its saved-plan and permission review must precede activation.
 
 Map read operations for folders and organization policies to the new identity at the narrowest scopes that can inspect the planned hierarchy. Review protected backend bucket metadata/object reads and the state-encryption access path separately. Do not reuse the bootstrap mutation role, grant organization-wide Owner/Editor, or add write permissions merely to make planning pass. The workflow disables Terraform state locking so it needs no lock-object creation/deletion. It must not run concurrently with a foundation apply. An empty/new foundation state prefix is acceptable; an inaccessible existing prefix is not equivalent to empty state.
 

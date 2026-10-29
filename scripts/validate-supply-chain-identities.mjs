@@ -248,6 +248,30 @@ if (count(foundationPlan, /^\s*id-token:\s*write\s*$/gm) !== 1 ||
   fail("Foundation rehearsal must be manual, plan-only, use dedicated trust, and publish no plan artifact");
 }
 
+const foundationIdentity = await source("infra/terraform/modules/foundation-plan-wif/main.tf");
+for (const claim of [
+  'assertion.repository_owner_id == "97871935"',
+  'assertion.repository_id == "1310793524"',
+  'assertion.repository == "larrymiami/Afyabridge-Cloud-Security"',
+  'assertion.workflow_ref == "larrymiami/Afyabridge-Cloud-Security/.github/workflows/terraform-foundation-plan.yml@refs/heads/main"',
+  'assertion.ref == "refs/heads/main"',
+  'assertion.ref_type == "branch"',
+  'assertion.event_name == "workflow_dispatch"',
+  'assertion.environment == "foundation-plan"',
+]) {
+  if (!foundationIdentity.includes(claim)) fail(`Dedicated foundation provider is missing trust claim: ${claim}`);
+}
+const foundationRoles = [...foundationIdentity.matchAll(/role\s*=\s*"([^"]+)"/g)].map(match => match[1]).sort();
+if (JSON.stringify(foundationRoles) !== JSON.stringify([
+  "roles/iam.workloadIdentityUser", "roles/resourcemanager.folderViewer",
+  "roles/serviceusage.serviceUsageConsumer", "roles/storage.bucketViewer", "roles/storage.objectViewer",
+].sort())) fail("Foundation planning grant set must remain read-oriented with dedicated impersonation");
+if (!/disabled\s*=\s*!var.provider_enabled/.test(foundationIdentity) ||
+    !foundationIdentity.includes('/objects/foundation/project-factory/') ||
+    /google_service_account_key|google_organization_iam_binding|google_storage_bucket_iam_policy/.test(foundationIdentity)) {
+  fail("Foundation trust must remain gated and state reads scoped; no keys or authoritative IAM replacement");
+}
+
 const dockerfile = await source("apps/web/Dockerfile");
 const baseImages = [...dockerfile.matchAll(/^FROM\s+([^\s]+)/gm)].map(
   (match) => match[1],

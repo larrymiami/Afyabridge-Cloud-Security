@@ -10,3 +10,8 @@ output "github_federation" {
     project_number              = module.github_actions_federation.project_number
   }
 }
+
+output "foundation_plan" {
+  description = "Dedicated foundation plan identity and trust, or null while not configured."
+  value       = length(module.foundation_plan) == 0 ? null : module.foundation_plan[0]
+}

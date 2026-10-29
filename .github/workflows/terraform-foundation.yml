@@ -71,6 +71,9 @@ jobs:
       - name: Validate federation configuration
         run: terraform -chdir=infra/terraform/environments/federation validate -no-color
 
+      - name: Test optional foundation identity with mocked Google provider
+        run: terraform -chdir=infra/terraform/environments/federation test -no-color
+
       - name: Initialize observability configuration
         run: terraform -chdir=infra/terraform/environments/observability init -backend=false -input=false -lockfile=readonly
 

@@ -88,6 +88,20 @@ try {
 
 const mutations = [
   ...[
+    ["foundation immutable owner identity", 'assertion.repository_owner_id == "97871935"', 'true'],
+    ["foundation immutable repository identity", 'assertion.repository_id == "1310793524"', 'true'],
+    ["foundation exact workflow identity", 'assertion.workflow_ref ==', 'assertion.workflow_ref.startsWith('],
+    ["foundation environment claim", 'assertion.environment == "foundation-plan"', 'true'],
+    ["foundation organization read-only role", 'roles/resourcemanager.folderViewer', 'roles/resourcemanager.folderAdmin'],
+    ["foundation state read-only role", 'roles/storage.objectViewer', 'roles/storage.objectAdmin'],
+    ["foundation state prefix", '/objects/foundation/project-factory/', '/objects/'],
+    ["foundation activation gate", /disabled\s*=\s*!var.provider_enabled/, "disabled = false"],
+  ].map(([label, before, after]) => ({
+    label, validator: validateIdentityFixture,
+    path: "infra/terraform/modules/foundation-plan-wif/main.tf",
+    transform: text => text.replace(before, after),
+  })),
+  ...[
     ["main-only foundation dispatch", "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'", "if: always()"],
     ["foundation environment gate", "environment: foundation-plan", "environment: unprotected"],
     ["foundation expected commit", '"$EXPECTED_SHA" == "$GITHUB_SHA"', '"$EXPECTED_SHA" != "$GITHUB_SHA"'],
