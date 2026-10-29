@@ -6,6 +6,7 @@
 |---|---|
 | **Completed** | Milestone merged into `main` and reviewed. |
 | **In review** | Milestone package is complete and awaiting review, validation, or merge. |
+| **In progress** | Implementation is merged, but required deployment or effectiveness validation remains open. |
 | **Planned** | Scope is agreed, but implementation has not started. |
 | **Not started** | Milestone exists, but detailed scope is not finalized. |
 
@@ -21,10 +22,10 @@
 | v0.4 | Network and perimeter architecture | **Completed** |
 | v0.5 | Data protection and encryption architecture | **Completed** |
 | v0.6 | Application security baseline | **Completed** |
-| v0.7 | Infrastructure as code and secure GCP deployment | **In review** |
+| v0.7 | Infrastructure as code and secure GCP deployment | **In progress** |
 | v0.8 | Shift-left CI/CD security pipeline | **Completed** |
 | v0.9 | Software supply-chain security | **Completed** |
-| v0.10 | Cloud security posture and governance | **In review** |
+| v0.10 | Cloud security posture and governance | **In progress** |
 | v0.11 | Shift-right validation and runtime security | **Planned** |
 | v0.12 | Incident response and recovery | **Planned** |
 | v1.0 | Multi-country production-style capstone | **Not started** |
@@ -134,7 +135,7 @@
 
 ## v0.7 — Infrastructure as code and secure GCP deployment
 
-**Status:** In review  
+**Status:** In progress
 **Control state:** Implemented and statically validated; bootstrap and GitHub WIF deployment-control plane live-validated; later stacks pending live validation
 
 - [x] Implement the protected Terraform bootstrap, remote state, encryption, and execution-identity foundation
@@ -240,8 +241,8 @@ The exact exported image archive was then signed keylessly with Sigstore Cosign 
 
 ## v0.10 — Cloud security posture and governance
 
-**Status:** In review  
-**Control state:** v0.10A, v0.10B, and v0.10C are merged and CI-enforced; repository-scoped v0.10D is implemented and in review; live cloud posture/drift, live finding exercises, and operational trend history remain pending
+**Status:** In progress
+**Control state:** v0.10A–D are merged with repository CI validation; live cloud posture/drift, live finding exercises, and operational trend history remain pending
 
 - [x] v0.10A — establish a machine-readable cloud posture baseline tied to the authoritative security-control matrix
 - [x] v0.10A — define approved ownership, scope, severity/remediation, exception, validation-state, and live-cloud-source governance
@@ -260,6 +261,8 @@ The exact exported image archive was then signed keylessly with Sigstore Cosign 
 - [x] v0.10D — generate machine-readable JSON and human-readable Markdown posture reports, SLA/overdue views, severity/status/owner/source summaries, threshold decisions, repository coverage, and a per-run metrics snapshot
 - [x] v0.10D — govern reporting thresholds/history, anchor reviewed control severity and exceptionability, bind evidence to run/ref/commit context, and prevent repository-stage fake operational history or evidence-mode promotion
 - [ ] v0.10D — populate governed operational trend history and exercise real trend decisions after reviewed live evidence sources exist
+
+**Merged:** v0.10D PR #27 on 2026-08-07 as `6aa1ab8eec03787bfa5b4df221dd11fa3fae0ac7`. This closes repository reporting review; live-source validation remains open.
 
 **Validated:** v0.10A Security gates workflow run #103 (`31182652111`) validated the 18-control posture profile, governance contract, implementation-reference integrity, negative tests, and protected-main verdict integration. v0.10B was squash-merged as `f14e5a667c861f0c627132daa47a967c9966b613`; post-merge Security gates #162 (`31192470339`) and Supply chain #132 (`31192472421`) completed successfully on `main`, with Application baseline #190 and Terraform foundation #329 also succeeding. v0.10C was squash-merged as `35a10690631cf0d1f37018ecd9f12ee9b0d4d05a`; post-merge Security gates #188, Application baseline #213, and Supply chain #157 completed successfully on `main`. The v0.10C governance chain proves 18 deterministic active/historical exception-governance scenarios and 49 finding-lifecycle scenarios. v0.10D reviewer Security gates #201 (`31199764255`) completed successfully on PR head `c73f8f5aaf4b1f26d530f84abd8e314c11c41104`, with GitHub evaluating synthetic merge ref commit `16f969f6fa8c647b95608a94ebac43077210a166`; Application baseline #224 and Supply chain #170 also succeeded. The v0.10D governance job proved 18 anchored severity bindings, 18 anchored exceptionability/lifetime bindings, 9 reporting-governance boundary scenarios, and 36 reporting decision/trend scenarios while revalidating the full v0.10A–C chain. The current repository report is PASS with 11/11 desired-state rules, zero governed operational findings, zero overdue findings, and 11 rules still requiring live validation. The 30-day evidence artifact `security-gate-evidence-31199764255-1` (artifact `9002368925`, digest `sha256:3c035bbeda0efd42039382635e9fcc5133e2ed81ec995f1691b9c40dcad9e267`) contains the run-bound posture evaluation, JSON/Markdown report, metrics snapshot, and security evidence. Detailed evidence is recorded in `docs/evidence/v0.10a-validation.md`, `docs/evidence/v0.10b-validation.md`, `docs/evidence/v0.10c-validation.md`, and `docs/evidence/v0.10d-validation.md`.
 

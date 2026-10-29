@@ -25,3 +25,6 @@ terraform.rc
 backend.hcl
 
 /engineering-notes/
+
+# Compiled workspace package and worker output
+**/dist/

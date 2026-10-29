@@ -67,10 +67,9 @@ jobs:
 
       - name: Initialize federation configuration
         run: >-
-          terraform -chdir=infra/terraform/environments/federation init
+          terraform -chdir=infra/terraform/environments/federation init -lockfile=readonly
           -reconfigure
           -input=false
-          -lockfile=readonly
           -backend-config="bucket=${TF_STATE_BUCKET}"
           -backend-config="prefix=federation/core"
           -backend-config="kms_encryption_key=${TF_STATE_KMS_KEY}"

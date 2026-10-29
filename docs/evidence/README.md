@@ -14,6 +14,10 @@ This directory contains reviewed evidence records for the major implemented mile
 
 Evidence is intentionally cumulative. A later record can extend an earlier one without retroactively changing what the earlier test proved at the time.
 
+## Resumption baseline
+
+[2026-10-26 baseline review](./2026-10-26-baseline-review.md) records milestone reconciliation, validation-coverage fixes, fresh PR CI results, and dependency triage. It preserves current package/container security failures as blockers.
+
 ## Application and repository security
 
 | Evidence | State | Focus |
