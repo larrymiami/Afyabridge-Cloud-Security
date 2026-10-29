@@ -20,13 +20,3 @@ variable "apply_environment" {
   type        = string
   default     = "production"
 }
-
-variable "foundation_plan" {
-  description = "Optional dedicated hierarchy planning trust and read-only grants; never enables apply."
-  type = object({
-    organization_id  = string
-    state_bucket     = string
-    provider_enabled = optional(bool, false)
-  })
-  default = null
-}

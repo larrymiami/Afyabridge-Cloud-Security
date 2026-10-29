@@ -141,6 +141,7 @@ if (!/retention-days:\s*30/.test(gateEvidence)) {
 const terraformRoots = [
   "infra/terraform/bootstrap",
   "infra/terraform/environments/foundation",
+  "infra/terraform/environments/foundation-access",
   "infra/terraform/environments/network",
   "infra/terraform/environments/workloads",
   "infra/terraform/environments/federation",
