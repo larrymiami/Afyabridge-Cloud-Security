@@ -232,6 +232,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Test foundation plan scope and redaction
+        run: node --test scripts/test-foundation-plan.mjs
+
       - name: Validate exception registry
         run: node scripts/validate-security-exceptions.mjs security/exceptions.json
 

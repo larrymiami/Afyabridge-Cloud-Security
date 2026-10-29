@@ -42,6 +42,8 @@ const unprivilegedWorkflows = [
   ".github/workflows/terraform-foundation.yml",
 ];
 
+const foundationPlanPath = ".github/workflows/terraform-foundation-plan.yml";
+
 const supplyChainPath = ".github/workflows/supply-chain.yml";
 
 const deploymentWorkflows = [
@@ -51,6 +53,7 @@ const deploymentWorkflows = [
 
 for (const path of [
   ...unprivilegedWorkflows,
+  foundationPlanPath,
   supplyChainPath,
   ...deploymentWorkflows,
 ]) {
@@ -218,6 +221,31 @@ if (!/^\s*environment:\s*production\s*$/m.test(apply)) {
 for (const path of [planPath, applyPath]) {
   const text = await source(path);
   validateCheckoutCredentials(text, path);
+}
+
+const foundationPlan = await source(foundationPlanPath);
+validateCheckoutCredentials(foundationPlan, foundationPlanPath);
+const foundationRequirements = [
+  "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'",
+  "environment: foundation-plan",
+  '"$EXPECTED_SHA" == "$GITHUB_SHA"',
+  "ref: ${{ github.sha }}",
+  "workload_identity_provider: ${{ vars.GCP_FOUNDATION_PLAN_PROVIDER }}",
+  "service_account: ${{ vars.GCP_FOUNDATION_PLAN_SERVICE_ACCOUNT }}",
+  "init -lockfile=readonly",
+  '-backend-config="prefix=foundation/project-factory"',
+  "-lock=false",
+  "-var-file=hierarchy-validation.tfvars.example",
+  "node scripts/summarize-foundation-plan.mjs",
+  'if: always()',
+  'rm -f infra/terraform/environments/foundation/foundation.tfplan',
+];
+for (const requirement of foundationRequirements) {
+  if (!foundationPlan.includes(requirement)) fail(`foundation live plan is missing control: ${requirement}`);
+}
+if (count(foundationPlan, /^\s*id-token:\s*write\s*$/gm) !== 1 ||
+    /pull_request|pull_request_target|actions\/upload-artifact@|terraform[^\n]*\bapply\b|GCP_WIF_PLAN_PROVIDER|GCP_TERRAFORM_(?:PLAN|APPLY)_SERVICE_ACCOUNT/.test(foundationPlan)) {
+  fail("Foundation rehearsal must be manual, plan-only, use dedicated trust, and publish no plan artifact");
 }
 
 const dockerfile = await source("apps/web/Dockerfile");

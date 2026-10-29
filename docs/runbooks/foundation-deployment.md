@@ -6,6 +6,10 @@ This runbook governs reviewed deployment of the v0.7B Google Cloud foundation: r
 
 The procedure assumes the v0.7A bootstrap state bucket and Terraform execution identity already exist.
 
+## Readiness and rehearsal
+
+Start with [foundation live-validation readiness](foundation-readiness.md). The hierarchy-only manual rehearsal has dedicated trust and publishes no deployable plan artifact. The existing federation workflows do not deploy this root.
+
 ## Preconditions
 
 Before planning or applying:
@@ -35,7 +39,7 @@ Configure the protected GCS backend using reviewed backend arguments or a local 
 ## Initialize
 
 ```bash
-terraform init -reconfigure
+terraform init -reconfigure -input=false -lockfile=readonly
 terraform providers
 terraform validate
 terraform fmt -check -recursive ../..
