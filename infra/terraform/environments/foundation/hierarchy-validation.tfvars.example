@@ -1,0 +1,11 @@
+# Initial live planning profile. Identity and billing metadata come from the
+# protected execution environment; do not add real identifiers to this file.
+# This profile plans folders and key restrictions only, without new projects.
+countries = {
+  ke = {
+    display_name = "Kenya"
+    environments = ["dev"]
+  }
+}
+
+projects = {}

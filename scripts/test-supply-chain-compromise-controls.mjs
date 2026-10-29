@@ -87,6 +87,20 @@ try {
 }
 
 const mutations = [
+  ...[
+    ["main-only foundation dispatch", "if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'", "if: always()"],
+    ["foundation environment gate", "environment: foundation-plan", "environment: unprotected"],
+    ["foundation expected commit", '"$EXPECTED_SHA" == "$GITHUB_SHA"', '"$EXPECTED_SHA" != "$GITHUB_SHA"'],
+    ["foundation provider separation", "vars.GCP_FOUNDATION_PLAN_PROVIDER", "vars.GCP_WIF_PLAN_PROVIDER"],
+    ["foundation identity separation", "vars.GCP_FOUNDATION_PLAN_SERVICE_ACCOUNT", "vars.GCP_TERRAFORM_APPLY_SERVICE_ACCOUNT"],
+    ["foundation provider lock", "init -lockfile=readonly", "init"],
+    ["foundation scope profile", "-var-file=hierarchy-validation.tfvars.example", "-var-file=terraform.tfvars.example"],
+    ["foundation plan cleanup", "rm -f infra/terraform/environments/foundation/foundation.tfplan", "echo retained"],
+  ].map(([label, before, after]) => ({
+    label, validator: validateIdentityFixture,
+    path: ".github/workflows/terraform-foundation-plan.yml",
+    transform: (text) => text.replace(before, after),
+  })),
   {
     label: "federation plan job cannot mutate provider selections",
     validator: validateGovernanceFixture,
