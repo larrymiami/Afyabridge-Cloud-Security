@@ -79,19 +79,39 @@ jobs:
           umask 077
           root=infra/terraform/environments/foundation
           log="$RUNNER_TEMP/foundation-plan.log"
-          if ! (
-            terraform fmt -check -recursive infra/terraform &&
-            terraform -chdir=infra/terraform/environments/foundation init -lockfile=readonly -reconfigure -input=false \
-              -backend-config="bucket=${TF_STATE_BUCKET}" \
-              -backend-config="prefix=foundation/project-factory" \
-              -backend-config="kms_encryption_key=${TF_STATE_KMS_KEY}" &&
-            terraform -chdir="$root" validate -no-color &&
-            terraform -chdir="$root" plan -input=false -lock=false -refresh=true -no-color \
-              -var-file=hierarchy-validation.tfvars.example -out=foundation.tfplan
-          ) > "$log" 2>&1; then
-            echo "::error::Foundation planning failed. Do not grant broader roles or print raw plan/state; investigate through the approved operator path."
-            exit 1
-          fi
+          run_phase() {
+            local phase="$1" reason
+            shift
+            if "$@" > "$log" 2>&1; then
+              echo "Foundation $phase succeeded."
+              return 0
+            fi
+            reason="see operator runbook"
+            if grep -Eqi 'attribute condition|invalid_grant|unauthorized_client' "$log"; then
+              reason="credential exchange rejected"
+            elif grep -Eqi 'iam\.serviceAccounts\.getAccessToken' "$log"; then
+              reason="service account impersonation denied"
+            elif grep -Eqi 'storage\.objects\.list' "$log"; then
+              reason="state object listing denied"
+            elif grep -Eqi 'storage\.objects\.get' "$log"; then
+              reason="state object read denied"
+            elif grep -Eqi 'serviceusage\.services\.use|USER_PROJECT_DENIED' "$log"; then
+              reason="quota project access denied"
+            elif grep -Eqi '403|PERMISSION_DENIED|forbidden' "$log"; then
+              reason="permission denied"
+            fi
+            echo "::error::Foundation $phase failed ($reason). Raw output withheld."
+            return 1
+          }
+          run_phase formatting terraform fmt -check -recursive infra/terraform
+          run_phase initialization terraform -chdir=infra/terraform/environments/foundation init -lockfile=readonly \
+            -reconfigure -input=false \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="prefix=foundation/project-factory" \
+            -backend-config="kms_encryption_key=${TF_STATE_KMS_KEY}"
+          run_phase validation terraform -chdir="$root" validate -no-color
+          run_phase planning terraform -chdir="$root" plan -input=false -lock=false -refresh=true -no-color \
+            -var-file=hierarchy-validation.tfvars.example -out=foundation.tfplan
           terraform -chdir="$root" show -json foundation.tfplan 2>> "$log" \
             | node scripts/summarize-foundation-plan.mjs >> "$GITHUB_STEP_SUMMARY"
 
