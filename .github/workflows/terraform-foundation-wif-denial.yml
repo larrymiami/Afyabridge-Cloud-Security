@@ -1,0 +1,94 @@
+name: Terraform foundation WIF denial test
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  verify-denial:
+    if: github.ref == 'refs/heads/main'
+    environment: foundation-plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+    env:
+      FOUNDATION_PROVIDER: ${{ vars.GCP_FOUNDATION_PLAN_PROVIDER }}
+    steps:
+      - name: Verify Google rejects a different workflow path
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          from urllib.error import HTTPError
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+
+          provider = os.environ["FOUNDATION_PROVIDER"]
+          if provider != (
+              "projects/49662756213/locations/global/workloadIdentityPools/"
+              "github-foundation-plan/providers/github"
+          ):
+              raise SystemExit("Unexpected foundation WIF provider")
+
+          audience = f"//iam.googleapis.com/{provider}"
+          oidc_url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
+          separator = "&" if "?" in oidc_url else "?"
+          request = Request(
+              oidc_url + separator + urlencode({"audience": f"https:{audience}"}),
+              headers={"Authorization": "Bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]},
+          )
+          try:
+              with urlopen(request, timeout=20) as response:
+                  token = json.load(response)["value"]
+          except HTTPError as error:
+              raise SystemExit(f"GitHub OIDC request failed with HTTP {error.code}") from None
+
+          payload = token.split(".")[1]
+          claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+          repository = "larrymiami/Afyabridge-Cloud-Security"
+          expected_claims = {
+              "repository": repository,
+              "repository_owner_id": "97871935",
+              "repository_id": "1310793524",
+              "ref": "refs/heads/main",
+              "ref_type": "branch",
+              "event_name": "workflow_dispatch",
+              "environment": "foundation-plan",
+              "workflow_ref": (
+                  f"{repository}/.github/workflows/terraform-foundation-wif-denial.yml"
+                  "@refs/heads/main"
+              ),
+          }
+          for name, expected in expected_claims.items():
+              if claims.get(name) != expected:
+                  raise SystemExit(f"Unexpected GitHub OIDC claim: {name}")
+
+          request = Request(
+              "https://sts.googleapis.com/v1/token",
+              data=urlencode({
+                  "audience": audience,
+                  "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+                  "requested_token_type": "urn:ietf:params:oauth:token-type:access_token",
+                  "scope": "https://www.googleapis.com/auth/cloud-platform",
+                  "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+                  "subject_token": token,
+              }).encode(),
+              headers={"Content-Type": "application/x-www-form-urlencoded"},
+          )
+          try:
+              with urlopen(request, timeout=20):
+                  raise SystemExit("Unexpected success: Google accepted the untrusted workflow")
+          except HTTPError as error:
+              result = json.load(error)
+              description = result.get("error_description", "").lower()
+              if (
+                  result.get("error") != "unauthorized_client"
+                  or "rejected by the attribute condition" not in description
+              ):
+                  raise SystemExit(f"Unexpected Google STS response (HTTP {error.code})") from None
+              print("Google STS rejected the alternate workflow token at the attribute condition.")
+          PY
